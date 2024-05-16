@@ -2,12 +2,14 @@
 import glob
 import os
 from PIL import Image
+import time
+from memory_profiler import profile, memory_usage
 
 @profile
 def buildCompositeImage():
 	### Configure this before running the script
 	VERSION = "2024-04-10_a"
-	regionPath = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}"
+	regionPath = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}/tiles/base/"
 	OUTPUT_PATH = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}/composites"
 	REGION_TILE_LENGTH = 64
 	TILE_PIXEL_LENGTH = 4
@@ -16,7 +18,7 @@ def buildCompositeImage():
 
 	# Identify files produced by the dumper
 	fileType = "/*.png"
-	tileImageFilePaths = glob.glob(f"{regionPath}/tiles/base/{fileType}")
+	tileImageFilePaths = glob.glob(f"{regionPath}{fileType}")
 
 	# Range the image dimensions
 	lowerX = lowerY = MAX_MAP_SIDE_LENGTH
@@ -57,4 +59,7 @@ def buildCompositeImage():
 		planeImage.save(os.path.join(OUTPUT_PATH,  f"plane_{planeNum}.png"))
 
 if __name__ == "__main__":
-	buildCompositeImage()
+	startTime = time.time()
+	# buildCompositeImage()
+	print(f"Peak memory usage: {max(memory_usage(proc=buildCompositeImage))}")
+	print(f"Runtime: {time.time()-startTime}")
