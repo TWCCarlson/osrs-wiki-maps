@@ -43,19 +43,15 @@ def buildCompositeImage():
 	# Push region images into the composites, per plane
 	for planeNum in range(0, PLANE_COUNT):
 		planeImage = Image.new('RGB', (compositeWidth, compositeHeight))
-		for regionFilePath in regionImageFilePaths:
-			fileName = os.path.splitext(os.path.basename(regionFilePath))[0]
-			plane, x, y = map(int, fileName.split("_"))
-			# Transform region data to location in the composite image
-			# Image references top left corner as origin, while Jagex uses bottom left
-			if lowerX <= x <= upperX and lowerY <= y <= upperY and plane==planeNum:
-				compositeXCoord = (x * REGION_TILE_LENGTH * TILE_PIXEL_LENGTH) - hOffset
-				compositeYCoord = compositeHeight - (((y+1) * REGION_TILE_LENGTH * TILE_PIXEL_LENGTH) - vOffset)
-				# input("Press enter to continue . . .")
-				# Paste the region image into the composite image
-				regionImage = Image.open(regionFilePath)
-				planeImage.paste(regionImage, (compositeXCoord, compositeYCoord))
-		# Save images
+		for regionY in range(upperY, lowerY-1, -1):
+			for regionX in range(lowerX, upperX+1, 1):
+				targetRegionFileName = os.path.normpath(os.path.join(regionPath, f"{planeNum}_{regionX}_{regionY}.png")).replace("\\", "/")
+				# If we have an image already just load it in
+				if targetRegionFileName in regionImageFilePaths:
+					compositeXCoord = (regionX * REGION_TILE_LENGTH * TILE_PIXEL_LENGTH) - hOffset
+					compositeYCoord = compositeHeight - (((regionY+1) * REGION_TILE_LENGTH * TILE_PIXEL_LENGTH) - vOffset)
+					regionImage = Image.open(targetRegionFileName)
+					planeImage.paste(regionImage, (compositeXCoord, compositeYCoord))
 		if not os.path.exists(OUTPUT_PATH):
 			os.makedirs(OUTPUT_PATH)
 		planeImage.save(os.path.join(OUTPUT_PATH,  f"plane_{planeNum}.png"))
