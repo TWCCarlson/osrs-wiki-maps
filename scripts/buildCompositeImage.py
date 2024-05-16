@@ -9,7 +9,7 @@ from memory_profiler import profile, memory_usage
 def buildCompositeImage():
 	### Configure this before running the script
 	VERSION = "2024-04-10_a"
-	regionPath = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}/tiles/base/"
+	regionPath = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}/tiles/base"
 	OUTPUT_PATH = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}/composites"
 	REGION_TILE_LENGTH = 64
 	TILE_PIXEL_LENGTH = 4
@@ -18,12 +18,13 @@ def buildCompositeImage():
 
 	# Identify files produced by the dumper
 	fileType = "/*.png"
-	tileImageFilePaths = glob.glob(f"{regionPath}{fileType}")
+	regionImageFilePaths =[os.path.normpath(path).replace("\\", "/") for path in glob.glob(f"{regionPath}{fileType}")]
+	# print(regionImageFilePaths)
 
 	# Range the image dimensions
 	lowerX = lowerY = MAX_MAP_SIDE_LENGTH
 	upperX = upperY = 0
-	for regionFilePath in tileImageFilePaths:
+	for regionFilePath in regionImageFilePaths:
 		fileName = os.path.splitext(os.path.basename(regionFilePath))[0]
 		plane, x, y = map(int, fileName.split("_")) # Expecting {plane}_{x}_{y}
 		lowerX = min(lowerX, x)
@@ -36,23 +37,24 @@ def buildCompositeImage():
 	compositeHeight = (upperY - lowerY + 1) * REGION_TILE_LENGTH * TILE_PIXEL_LENGTH
 
 	# We aren't rendering tiles from (0,0), so find the offset from unused region IDs
-	hOffset = (upperX + 1) * REGION_TILE_LENGTH * TILE_PIXEL_LENGTH - compositeWidth
-	# Image references top left corner as origin, while Jagex uses bottom left so offset by 1 region length
-	vOffset = (upperY) * REGION_TILE_LENGTH * TILE_PIXEL_LENGTH - compositeHeight
+	hOffset = (lowerX) * REGION_TILE_LENGTH * TILE_PIXEL_LENGTH
+	vOffset = (lowerY) * REGION_TILE_LENGTH * TILE_PIXEL_LENGTH
 
 	# Push region images into the composites, per plane
 	for planeNum in range(0, PLANE_COUNT):
 		planeImage = Image.new('RGB', (compositeWidth, compositeHeight))
-		for regionFilePath in tileImageFilePaths:
+		for regionFilePath in regionImageFilePaths:
 			fileName = os.path.splitext(os.path.basename(regionFilePath))[0]
 			plane, x, y = map(int, fileName.split("_"))
 			# Transform region data to location in the composite image
 			# Image references top left corner as origin, while Jagex uses bottom left
-			compositeXCoord = (x * REGION_TILE_LENGTH * TILE_PIXEL_LENGTH) - hOffset
-			compositeYCoord = compositeHeight - ((y * REGION_TILE_LENGTH * TILE_PIXEL_LENGTH) - vOffset)
-			# Paste the region image into the composite image
-			regionImage = Image.open(regionFilePath)
-			planeImage.paste(regionImage, (compositeXCoord, compositeYCoord))
+			if lowerX <= x <= upperX and lowerY <= y <= upperY and plane==planeNum:
+				compositeXCoord = (x * REGION_TILE_LENGTH * TILE_PIXEL_LENGTH) - hOffset
+				compositeYCoord = compositeHeight - (((y+1) * REGION_TILE_LENGTH * TILE_PIXEL_LENGTH) - vOffset)
+				# input("Press enter to continue . . .")
+				# Paste the region image into the composite image
+				regionImage = Image.open(regionFilePath)
+				planeImage.paste(regionImage, (compositeXCoord, compositeYCoord))
 		# Save images
 		if not os.path.exists(OUTPUT_PATH):
 			os.makedirs(OUTPUT_PATH)
