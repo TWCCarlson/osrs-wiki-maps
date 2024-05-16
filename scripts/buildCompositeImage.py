@@ -1,11 +1,10 @@
 ### Build a large image out of the region tiles produced by RuneLite's image dumper
 import glob
-import multiprocessing.dummy
 import os
 from PIL import Image
 import time
 from memory_profiler import profile, memory_usage
-import multiprocessing
+import multiprocessing.dummy
 
 # Pyvips on windows is finnicky
 # Windows binaries are required: https://pypi.org/project/pyvips/, https://www.libvips.org/install.html
@@ -18,7 +17,7 @@ import pyvips as pv
 def buildCompositeImage():
 	### Configure this before running the script
 	VERSION = "2024-04-10_a"
-	regionPath = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}"
+	regionPath = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}/tiles/base"
 	OUTPUT_PATH = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}/composites"
 	REGION_TILE_LENGTH = 64
 	TILE_PIXEL_LENGTH = 4
@@ -27,7 +26,7 @@ def buildCompositeImage():
 
 	# Identify files produced by the dumper
 	fileType = "/*.png"
-	regionImageFilePaths = glob.glob(f"{regionPath}/tiles/base/{fileType}")
+	regionImageFilePaths = [os.path.normpath(path).replace("\\","/") for path in glob.glob(f"{regionPath}{fileType}")]
 
 	# Range the image dimensions
 	lowerX = lowerY = MAX_MAP_SIDE_LENGTH
