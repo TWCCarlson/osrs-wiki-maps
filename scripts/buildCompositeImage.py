@@ -13,9 +13,10 @@ regionPath = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}/tiles/base"
 OUTPUT_PATH = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}/composites"
 REGION_TILE_LENGTH = 64
 TILE_PIXEL_LENGTH = 4
-REGION_PIXEL_LENGTH = REGION_TILE_LENGTH * TILE_PIXEL_LENGTH
 MAX_MAP_SIDE_LENGTH = 999 # in regions
 PLANE_COUNT = 4
+MULTIPROCESS_ENABLE = False
+REGION_PIXEL_LENGTH = REGION_TILE_LENGTH * TILE_PIXEL_LENGTH
 
 # Identify files produced by the dumper
 fileType = "/*.png"
@@ -57,12 +58,15 @@ def buildCompositeImage():
 
 	planeRenderArgs = list()
 	for plane in range(0, PLANE_COUNT):
-		# assemblePlanes(plane, upperX, upperY, lowerX, lowerY)
 		planeRenderArgs.append((plane, upperX, upperY, lowerX, lowerY))
 
 	# Assign one core per plane image
-	with multiprocessing.Pool() as pool:
-		pool.starmap(assemblePlanes, planeRenderArgs)
+	if MULTIPROCESS_ENABLE:
+		with multiprocessing.Pool() as pool:
+			pool.starmap(assemblePlanes, planeRenderArgs)
+	else:
+		for args in planeRenderArgs:
+			assemblePlanes(*args)
 
 if __name__ == "__main__":
 	startTime = time.time()
