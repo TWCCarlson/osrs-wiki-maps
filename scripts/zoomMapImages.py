@@ -16,6 +16,7 @@ VERSION = "2024-04-10_a"
 BASE_IMAGE_PATH = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}/fullplanes"
 OUTPUT_PATH = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}/scaledplanes"
 ZOOM_LEVELS = (-3, 3)
+BASELINE_ZOOM = 2
 
 # Collect plane images
 fileType = "/*.png"
@@ -28,28 +29,28 @@ def buildZoomLevels():
 def buildZoomLevel(zoomLevel):
 	for imagePath in imageFilePaths:
 		fileName = os.path.splitext(os.path.basename(imagePath))[0]
-		_, plane = fileName.split("_") # expecting {plane}_{x}_{y}
+		_, plane = fileName.split("_") # expecting plane_{plane}.png
 		inputImage = pv.Image.new_from_file(imagePath)
-		outputDir = os.path.join(OUTPUT_PATH, f"{zoomLevel}")
 
 		# Zoom level 2 is the baseline, so just write the image out
-		if zoomLevel == 2:
-			if not os.path.exists(outputDir):
-				os.makedirs(outputDir)
-			inputImage.write_to_file(os.path.join(OUTPUT_PATH, f"{zoomLevel}/plane_{plane}.png"))
+		if zoomLevel == BASELINE_ZOOM:
+			writeFile(inputImage, zoomLevel, plane)
 
 		# Otherwise calculate the scalefactor
-		scaleFactor = 2.0**zoomLevel / 2.0**2 # zoomlevel 2 is the baseline
+		scaleFactor = 2.0**zoomLevel / 2.0**BASELINE_ZOOM # zoomlevel 2 is the baseline
 
 		# Set the interpolation style
 		kernelStyle = pv.enums.Kernel.LINEAR if zoomLevel <= 1 else pv.enums.Kernel.NEAREST
 
 		# Scale and write out the image
 		zoomedImage = inputImage.resize(scaleFactor, kernel=kernelStyle)
-		
-		if not os.path.exists(outputDir):
-			os.makedirs(outputDir)
-		zoomedImage.write_to_file(os.path.join(outputDir, f"plane_{plane}.png"))
+		writeFile(zoomedImage, zoomLevel, plane)
+
+def writeFile(image, zoomLevel, plane):
+	outputDir = os.path.join(OUTPUT_PATH, f"{zoomLevel}")
+	if not os.path.exists(outputDir):
+		os.makedirs(outputDir)
+	image.write_to_file(os.path.join(outputDir, f"plane_{plane}.png"))
 
 if __name__ == "__main__":
 	startTime = time.time()
