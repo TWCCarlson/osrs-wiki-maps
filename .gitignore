@@ -37,3 +37,6 @@ venv/
 
 # libvips
 vipsbin/
+
+# profiling
+temp.dat
