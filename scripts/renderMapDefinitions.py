@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 import os
 from collections import defaultdict
+from pprint import pprint
 
 VERSION = "2024-04-10_a"
 regionPath = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}/tiles/base"
@@ -12,7 +13,7 @@ TILE_PIXEL_LENGTH = 4
 REGION_PIXEL_LENGTH = REGION_TILE_LENGTH * TILE_PIXEL_LENGTH
 MAX_MAP_SIDE_LENGTH = 999 # in regions
 PLANE_COUNT = 4
-MAP_ID = 3
+MAP_ID = 7
 
 # Load the data
 squareFile = open(os.path.join(mapdefsPath, f'mapSquareDefinitions_{MAP_ID}.json'))
@@ -27,7 +28,8 @@ for data in zoneData:
     regionY = data["sourceSquareZ"]
     regionPlane = data["minLevel"]
     tilePath = f"{regionPath}/{regionPlane}_{regionX}_{regionY}.png"
-    regionPaths[regionPlane].add(tilePath)
+    if os.path.exists(tilePath):
+        regionPaths[regionPlane].add(tilePath)
 
 for data in squareData:
     # Get the source regions
@@ -35,7 +37,8 @@ for data in squareData:
     regionY = data["sourceSquareZ"]
     regionPlane = data["minLevel"]
     tilePath = f"{regionPath}/{regionPlane}_{regionX}_{regionY}.png"
-    regionPaths[regionPlane].add(tilePath)
+    if os.path.exists(tilePath):
+        regionPaths[regionPlane].add(tilePath)
 
 lowerX = lowerY = MAX_MAP_SIDE_LENGTH
 upperX = upperY = 0
@@ -80,10 +83,13 @@ for data in squareData:
     regionX = data["sourceSquareX"]
     regionY = data["sourceSquareZ"]
     regionPlane = data["minLevel"]
+    regionLevels = data["levels"]
     # Transform the the composite coordinate
     compositeSquareX = (regionX * REGION_PIXEL_LENGTH) - hOffset
     compositeSquareY = (upperY * REGION_PIXEL_LENGTH) - (regionY * REGION_PIXEL_LENGTH)
-    cv2.rectangle(outputImages[regionPlane], (compositeSquareX, compositeSquareY), (compositeSquareX+REGION_PIXEL_LENGTH, compositeSquareY+REGION_PIXEL_LENGTH), (0,255,0), 2)
+    # cv2.rectangle(outputImages[regionPlane], (compositeSquareX, compositeSquareY), (compositeSquareX+REGION_PIXEL_LENGTH, compositeSquareY+REGION_PIXEL_LENGTH), (0,255,0), 2)
+    for level in range(regionPlane, regionPlane+regionLevels):
+        cv2.rectangle(outputImages[level], (compositeSquareX, compositeSquareY), (compositeSquareX+REGION_PIXEL_LENGTH, compositeSquareY+REGION_PIXEL_LENGTH), (0,255,0), 2)
 
 # Mark the zones being taken
 for data in zoneData:
@@ -91,17 +97,22 @@ for data in zoneData:
     regionX = data["sourceSquareX"]
     regionY = data["sourceSquareZ"]
     regionPlane = data["minLevel"]
+    regionLevels = data["levels"]
     zoneX = data["sourceZoneX"]
     zoneY = data["sourceZoneZ"]
     # Transform to the composite coordinate
     compositeZoneX = (regionX * REGION_PIXEL_LENGTH) - hOffset + (zoneX * 8 * TILE_PIXEL_LENGTH)
     # Zones are given from bottom left origin, opencv writes from top left, so we need the composite height, then offset from bottom left
     compositeZoneY = (upperY * REGION_PIXEL_LENGTH) - (regionY * REGION_PIXEL_LENGTH) + ((8*8*TILE_PIXEL_LENGTH) - (zoneY * 8 * TILE_PIXEL_LENGTH + 32))
-    cv2.rectangle(outputImages[regionPlane], (compositeZoneX, compositeZoneY), (compositeZoneX+32, compositeZoneY+32), (0,0,255), 1)
+    # cv2.rectangle(outputImages[regionPlane], (compositeZoneX, compositeZoneY), (compositeZoneX+32, compositeZoneY+32), (0,0,255), 1)
+    for level in range(regionPlane, regionPlane+regionLevels):
+        cv2.rectangle(outputImages[level], (compositeZoneX, compositeZoneY), (compositeZoneX+32, compositeZoneY+32), (0,0,255), 1)
 
 for plane in range(0, PLANE_COUNT):
-    cv2.imshow(f"Plane_{plane} Squares", outputImages[plane])
+    cv2.imshow(f"Plane_{plane}", outputImages[plane])
 cv2.waitKey(0)
 
 squareFile.close()
 zoneFile.close()
+
+pprint(regionPaths)
