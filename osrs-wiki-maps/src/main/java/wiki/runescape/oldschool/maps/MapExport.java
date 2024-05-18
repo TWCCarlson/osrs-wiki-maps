@@ -5,6 +5,10 @@ import net.runelite.cache.*;
 import net.runelite.cache.definitions.AreaDefinition;
 import net.runelite.cache.definitions.ObjectDefinition;
 import net.runelite.cache.definitions.SpriteDefinition;
+import net.runelite.cache.definitions.WorldMapCompositeDefinition;
+import net.runelite.cache.definitions.ZoneDefinition;
+import net.runelite.cache.definitions.MapSquareDefinition;
+import net.runelite.cache.definitions.loaders.WorldMapCompositeLoader;
 import net.runelite.cache.fs.*;
 import net.runelite.cache.region.Location;
 import net.runelite.cache.region.Region;
@@ -74,6 +78,38 @@ public class MapExport {
         String json = gson.toJson(icons);
         out.write(json);
         out.close();
+
+        Index index = store.getIndex(IndexType.WORLDMAP);
+        Archive archive = index.getArchive(1);
+        Storage storage = store.getStorage();
+        byte[] archiveData = storage.loadArchive(archive);
+        ArchiveFiles files = archive.getFiles(archiveData);
+
+        WorldMapCompositeLoader loader = new WorldMapCompositeLoader();
+
+        for (FSFile file : files.getFiles()) {
+            WorldMapCompositeDefinition wmd = loader.load(file.getContents());
+            int mapid = file.getFileId();
+
+            List<MapSquareDefinition> mapSquareDefinitions = new ArrayList<>(wmd.getMapSquareDefinitions());
+            List<ZoneDefinition> zoneDefinitions = new ArrayList<>(wmd.getZoneDefinitions());
+
+            String dirname_mapdefs = String.format("./out/mapgen/versions/%s/worldMapCompositeDefinitions", version);
+
+            String msFilename = String.format("mapSquareDefinitions_%s.json", mapid);
+            outputfile = fileWithDirectoryAssurance(dirname_mapdefs, msFilename);
+            out = new PrintWriter(outputfile);
+            json = gson.toJson(mapSquareDefinitions);
+            out.write(json);
+            out.close();
+
+            String zFilename = String.format("zoneDefinitions_%s.json", mapid);
+            outputfile = fileWithDirectoryAssurance(dirname_mapdefs, zFilename);
+            out = new PrintWriter(outputfile);
+            json = gson.toJson(zoneDefinitions);
+            out.write(json);
+            out.close();
+        }
     }
 
     private static File fileWithDirectoryAssurance(String directory, String filename) {
