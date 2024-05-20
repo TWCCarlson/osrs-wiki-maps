@@ -21,12 +21,14 @@ MAX_MAP_SIDE_LENGTH = 999 # in regions
 PLANE_COUNT = 4
 DEBUG_MODE = False # Draws red zone boundaries and green square boundaries on the output
 
-def renderSourceImages():
+def renderDisplayImages():
     # Gather the defs files
     fileType = "/*.json"
     mapDefPaths = [os.path.normpath(path) for path in glob.glob(f"{MAP_DEFS_PATH}{fileType}")]
     squareDefs = defaultdict(str)
     zoneDefs = defaultdict(str)
+
+    # Sort the defs files in square/zone pairs
     for mapDefPath in mapDefPaths:
         fileName = os.path.splitext(os.path.basename(mapDefPath))[0]
         defType, mapID = fileName.split("_") # expecting {mapSquareDefinitions/zoneDefinitions}_{mapID}.png
@@ -41,9 +43,9 @@ def renderSourceImages():
 
     # Render images
     for mapID in squareDefs.keys():
-        renderSourceImage(mapID, squareDefs[mapID], zoneDefs[mapID])
+        renderDisplayImage(mapID, squareDefs[mapID], zoneDefs[mapID])
 
-def renderSourceImage(mapID, squareDefPath, zoneDefPath):
+def renderDisplayImage(mapID, squareDefPath, zoneDefPath):
     # Range the image dimensions
     lowerX = lowerZ = MAX_MAP_SIDE_LENGTH
     upperX = upperZ = 0
@@ -89,17 +91,16 @@ def renderSourceImage(mapID, squareDefPath, zoneDefPath):
         upperX = max(upperX, displaySquareX)
         upperZ = max(upperZ, displaySquareZ)
 
-    # Remember there's a fencepost problem here, add one tile length of pixels
+    # Remember there's a fencepost problem here, add one square length of pixels
     compositeWidth = (upperX - lowerX + 1) * SQUARE_PIXEL_LENGTH
     compositeHeight = (upperZ - lowerZ + 1) * SQUARE_PIXEL_LENGTH
 
-    # We aren't rendering tiles from (0,0), so find the offset from unused region IDs
+    # We aren't rendering tiles from (0,0), so find the offset giving the new origin
     hOffset = (lowerX) * SQUARE_PIXEL_LENGTH
     vOffset = (lowerZ) * SQUARE_PIXEL_LENGTH
 
     # Set background of the outputs
     outputImage = np.zeros((compositeHeight, compositeWidth, 3), dtype=np.uint8)
-    # print(f"Output image ranges from {lowerX},{lowerZ}->{upperX},{upperZ}")
 
     # Mark the squares being taken
     for data in squareData:
@@ -162,7 +163,7 @@ def renderSourceImage(mapID, squareDefPath, zoneDefPath):
 
 if __name__ == "__main__":
     startTime = time.time()
-	# renderSourceImages()
-    print(f"Peak memory usage: {max(memory_usage(proc=renderSourceImages))}")
+	# renderDisplayImages()
+    print(f"Peak memory usage: {max(memory_usage(proc=renderDisplayImages))}")
     print(f"Runtime: {time.time()-startTime}")
     
