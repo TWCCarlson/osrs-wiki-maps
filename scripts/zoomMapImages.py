@@ -1,4 +1,4 @@
-### Build a large image out of the region tiles produced by RuneLite's image dumper
+### Scale images produced by the stitching script to different zoom levels
 import glob
 import os
 import time
@@ -22,20 +22,27 @@ BASELINE_ZOOM = 2
 fileType = "/*.png"
 imageFilePaths = [os.path.normpath(path) for path in glob.glob(f"{BASE_IMAGE_PATH}{fileType}")]
 
-def buildZoomLevels():
-	for zoomLevel in range(ZOOM_LEVELS[0], ZOOM_LEVELS[1]+1):
-		buildZoomLevel(zoomLevel)
+def writeFile(image, zoomLevel, plane):
+	outputDir = os.path.join(OUTPUT_PATH, f"{zoomLevel}")
+	if not os.path.exists(outputDir):
+		os.makedirs(outputDir)
+	image.write_to_file(os.path.join(outputDir, f"plane_{plane}.png"))
 
-def buildZoomLevel(zoomLevel):
+def rescalePlanes():
 	for imagePath in imageFilePaths:
-		fileName = os.path.splitext(os.path.basename(imagePath))[0]
-		_, plane = fileName.split("_") # expecting plane_{plane}.png
-		inputImage = pv.Image.new_from_file(imagePath)
+		rescalePlane(imagePath)
 
+def rescalePlane(imagePath):
+	# Load the image
+	fileName = os.path.splitext(os.path.basename(imagePath))[0]
+	_, plane = fileName.split("_") # expecting plane_{plane}.png
+	inputImage = pv.Image.new_from_file(imagePath)
+	
+	for zoomLevel in range(ZOOM_LEVELS[0], ZOOM_LEVELS[1]+1):
 		# Zoom level 2 is the baseline, so just write the image out
 		if zoomLevel == BASELINE_ZOOM:
 			writeFile(inputImage, zoomLevel, plane)
-
+			
 		# Otherwise calculate the scalefactor
 		scaleFactor = 2.0**zoomLevel / 2.0**BASELINE_ZOOM # zoomlevel 2 is the baseline
 
@@ -46,14 +53,9 @@ def buildZoomLevel(zoomLevel):
 		zoomedImage = inputImage.resize(scaleFactor, kernel=kernelStyle)
 		writeFile(zoomedImage, zoomLevel, plane)
 
-def writeFile(image, zoomLevel, plane):
-	outputDir = os.path.join(OUTPUT_PATH, f"{zoomLevel}")
-	if not os.path.exists(outputDir):
-		os.makedirs(outputDir)
-	image.write_to_file(os.path.join(outputDir, f"plane_{plane}.png"))
-
 if __name__ == "__main__":
-	startTime = time.time()
 	# buildZoomLevels()
-	print(f"Peak memory usage: {max(memory_usage(proc=buildZoomLevels))}")
+	startTime = time.time()
+	# rescalePlanes()
+	print(f"Peak memory usage: {max(memory_usage(proc=rescalePlanes))}")
 	print(f"Runtime: {time.time()-startTime}")
