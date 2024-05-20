@@ -110,7 +110,7 @@ def renderDisplayImage(mapID, squareDefPath, zoneDefPath):
         sourcePlane = data["minLevel"]
         sourceLevels = data["levels"]
         sourceImagePath = f"{MAP_TILES_PATH}/{sourcePlane}_{sourceSquareX}_{sourceSquareZ}.png"
-        sourceImage = cv2.imread(sourceImagePath, flags=cv2.IMREAD_COLOR)
+        sourceImage = cv2.imread(sourceImagePath, flags=cv2.IMREAD_UNCHANGED)
         # Get the display location
         displaySquareX = data["displaySquareX"]
         displaySquareZ = data["displaySquareZ"]
@@ -133,7 +133,7 @@ def renderDisplayImage(mapID, squareDefPath, zoneDefPath):
         sourceZoneX = data["sourceZoneX"]
         sourceZoneZ = data["sourceZoneZ"]
         sourceImagePath = f"{MAP_TILES_PATH}/{sourcePlane}_{sourceSquareX}_{sourceSquareZ}.png"
-        sourceImage = cv2.imread(sourceImagePath, flags=cv2.IMREAD_COLOR)
+        sourceImage = cv2.imread(sourceImagePath, flags=cv2.IMREAD_UNCHANGED)
         sourceX_px = sourceZoneX * ZONE_PIXEL_LENGTH
         sourceZ_px = SQUARE_PIXEL_LENGTH - sourceZoneZ * ZONE_PIXEL_LENGTH - ZONE_PIXEL_LENGTH
         # Crop into the specific zone

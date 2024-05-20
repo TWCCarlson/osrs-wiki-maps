@@ -9,7 +9,7 @@ from memory_profiler import memory_usage
 
 ### Configure this before running the script
 VERSION = "2024-04-10_a"
-regionPath = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}/tiles/base"
+regionPath = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}/tiles/alpha"
 OUTPUT_PATH = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}/fullplanes"
 MULTIPROCESS_ENABLE = False
 REGION_TILE_LENGTH = 64
@@ -51,7 +51,7 @@ def assemblePlane(plane, upperX, upperY, lowerX, lowerY):
 		_, x, y = map(int, fileName.split("_")) # Expecting {plane}_{x}_{y}
 		compositeXCoord = (x * REGION_TILE_LENGTH * TILE_PIXEL_LENGTH) - hOffset
 		compositeYCoord = compositeHeight - (((y+1) * REGION_TILE_LENGTH * TILE_PIXEL_LENGTH) - vOffset)
-		regionImage = cv2.imread(regionFilePath, cv2.IMREAD_COLOR)
+		regionImage = cv2.imread(regionFilePath, cv2.IMREAD_UNCHANGED)
 		outputImage[compositeYCoord:compositeYCoord+regionImage.shape[1], compositeXCoord:compositeXCoord+regionImage.shape[0]] = regionImage
 	if not os.path.exists(OUTPUT_PATH):
 		os.makedirs(OUTPUT_PATH)

@@ -99,7 +99,7 @@ def renderSourceImage(mapID, squareDefPath, zoneDefPath):
             _, x, y = map(int, fileName.split("_")) # Expecting {plane}_{x}_{y}
             compositeXCoord = (x * REGION_PIXEL_LENGTH) - hOffset
             compositeYCoord = compositeHeight - (((y+1) * REGION_PIXEL_LENGTH) - vOffset)
-            regionImage = cv2.imread(regionFilePath, cv2.IMREAD_COLOR)
+            regionImage = cv2.imread(regionFilePath, cv2.IMREAD_UNREAD)
             outputImages[plane][compositeYCoord:compositeYCoord+regionImage.shape[1], compositeXCoord:compositeXCoord+regionImage.shape[0]] = regionImage 
 
     # Mark the squares being taken
