@@ -40,3 +40,4 @@ vipsbin/
 
 # profiling
 temp.dat
+/scripts/transfer_test
