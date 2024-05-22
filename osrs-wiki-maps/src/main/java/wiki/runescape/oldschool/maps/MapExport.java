@@ -28,6 +28,8 @@ public class MapExport {
     private static RegionLoader regionLoader;
     private static String version = "2024-04-10_a";
     public static void main(String[] args) throws Exception {
+        long startTime = System.nanoTime();
+
         // Optional version arg for saved filenames
         version = args.length > 0 ? args[0] : version;
         Gson gson = new Gson();
@@ -64,7 +66,7 @@ public class MapExport {
                 String dirname = String.format("./out/mapgen/versions/%s/tiles/base", version);
                 String filename = String.format("%s_%s_%s.png", plane, x, y);
                 File outputfile = fileWithDirectoryAssurance(dirname, filename);
-                System.out.println(outputfile);
+//                System.out.println(outputfile);
                 ImageIO.write(reg, "png", outputfile);
             }
         }
@@ -110,6 +112,9 @@ public class MapExport {
             out.write(json);
             out.close();
         }
+        long endTime = System.nanoTime();
+        long duration = (endTime - startTime)/1000000;
+        System.out.println("Export took " + duration + "ms");
     }
 
     private static File fileWithDirectoryAssurance(String directory, String filename) {
@@ -145,7 +150,7 @@ public class MapExport {
             String dirname = String.format("./out/mapgen/versions/%s/icons", version);
             String filename = String.format("%s.png", spriteId);
             File outputfile = fileWithDirectoryAssurance(dirname, filename);
-            System.out.println(outputfile);
+//            System.out.println(outputfile);
             ImageIO.write(iconImage, "png", outputfile);
         }
         return icons;
