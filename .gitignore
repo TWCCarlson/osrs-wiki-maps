@@ -28,6 +28,17 @@
 hs_err_pid*
 replay_pid*
 
+# pyvips
+vipsbin/
+
 # input
 data/
 out/
+test/
+
+# profiling
+temp.dat
+vips-profile.txt
+
+# cache files
+__pycache__
