@@ -24,6 +24,8 @@ UPPER_SQUARE_Y = 196
 LOWER_SQUARE_Y = 19
 SQUARE_PIXEL_LENGTH = 256
 MULTIPROCESS_ENABLE = False
+BACKGROUND_THRESHOLD = 0
+BACKGROUND_COLOR = [0,0,0]
 
 def rescaleImage(image, zoomLevel, scaleFactor):
 	# Set the interpolation style
@@ -40,12 +42,10 @@ def dz_padImage(image, offsetLeft_px, offsetBottom_px):
 		- offsetLeft_px: Pixels between (0,0) and the image's left border
 		- offsetBottom_px: Pixels between (0,0) and the image's bottom border
 	"""
-	print(f"Pre:  {image.width} x {image.height}")
 	bottomPadding = pv.Image.black(image.width, offsetBottom_px)
 	image = image.join(bottomPadding, "vertical")
 	leftPadding = pv.Image.black(offsetLeft_px, image.height)
 	paddedImage = leftPadding.join(image, "horizontal")
-	print(f"Post: {image.width} x {image.height}")
 	return paddedImage
 
 def growImageToTileLayer(image, tileSize):
@@ -105,8 +105,8 @@ def createTiles(imagePath):
 							overlap=0,
 							layout='google', 
 							region_shrink='nearest',
-							background=0,
-							skip_blanks=0)
+							background=BACKGROUND_COLOR,
+							skip_blanks=BACKGROUND_THRESHOLD)
 
 def createTiles_byplane():
 	# Identify images
@@ -122,6 +122,6 @@ def createTiles_byplane():
 
 if __name__ == "__main__":
 	startTime = time.time()
-	createTiles_byplane()
-	# print(f"Peak memory usage: {max(memory_usage(proc=createTiles_byplane))}")
+	# createTiles_byplane()
+	print(f"Peak memory usage: {max(memory_usage(proc=createTiles_byplane))}")
 	print(f"Runtime: {time.time()-startTime}")

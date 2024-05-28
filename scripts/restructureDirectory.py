@@ -20,7 +20,7 @@ BASELINE_ZOOM = 2
 def restructureDirectories():
 	if not os.path.exists(PLANES_DIRECTORY):
 		raise FileNotFoundError("Base plane image directories not found")
-	# Recursively grab all the files in the dzsave target directory
+	# Grab the parent plane directory locations
 	planeDirectories = [os.path.normpath(path) for path in glob.glob(os.path.join(PLANES_DIRECTORY, "*/"))]
 
 	# Restructure on a plane by plane basis
@@ -32,7 +32,7 @@ def restructureDirectories():
 			restructureDirectory(directory, PYRAMID_LAYOUT)
 
 def restructureDirectory(directory, layout):
-	# Generate an iterable of all the files in this pyramid directory
+	# Generate an iterable of all the files in this pyramid directory and subdirectories
 	pyramidSearchPath = os.path.join(directory, "**/*.png")
 	pyramidFiles = glob.iglob(pyramidSearchPath, recursive=True)
 
@@ -44,9 +44,8 @@ def restructureDirectory(directory, layout):
 		renameFile(imagePath, layout)
 
 def renameFile(imagePath, layout):
-	# print(imagePath)
 	if layout == "google":
-		# Retrieve the slice data
+		# Retrieve the tile's location data
 		splitPath = os.path.normpath(imagePath).split(os.sep)[-5:]
 		z = int(splitPath[0].split("_")[-1])
 		zoom = int(splitPath[1])
@@ -55,7 +54,7 @@ def renameFile(imagePath, layout):
 		# Transform to (0,0) bottom left coordinates for squares
 		# X coordinate is already matching
 		# Recall that the top and right bounds are integer tile based
-		# This means the same math used to fill the tiles needs to be done again
+		# This means the same math used to fill the layers needs to be done again here
 
 		# Get the px height of the base image at this zoom level
 		scaleFactor = 2.0**zoom / 2.0**BASELINE_ZOOM
