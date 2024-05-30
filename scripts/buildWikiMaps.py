@@ -1,6 +1,7 @@
 import os.path
 import cache
 import createCompositeImages
+import createZoomedPlanes
 
 
 # fetchCache()
@@ -35,3 +36,6 @@ if __name__ == "__main__":
 
     # 3. Generate the stacked composite images for higher planes
     createCompositeImages.actionRoutine(outputDir)
+
+    # 4. Generate the zoom levels from the composite planes
+    createZoomedPlanes.actionRoutine(outputDir)

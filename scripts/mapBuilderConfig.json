@@ -8,5 +8,23 @@
         "blurRadius": 1,
         "sourcePath": "fullplanes/base",
         "outPath": "fullplanes/composites"
+    },
+    "ZOOM_OPTS": {
+        "zoomLevels": {
+            "min": -3,
+            "max": 3
+        },
+        "baselineZoomLevel": 2,
+        "kernels": {
+            "-3": "linear",
+            "-2": "linear",
+            "-1": "linear",
+            "0": "linear",
+            "1": "linear",
+            "2": "nearest",
+            "3": "nearest"
+        },
+        "sourcePath": "fullplanes/composites",
+        "outPath": "fullplanes/scaled"
     }
 }
