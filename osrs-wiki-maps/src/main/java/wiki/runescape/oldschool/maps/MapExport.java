@@ -29,9 +29,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
+import java.util.*;
 
 public class MapExport {
     private static RegionLoader regionLoader;
@@ -57,15 +55,17 @@ public class MapExport {
         dumper.setRenderLabels(false);
         dumper.load();
 
-        for (int plane = 0; plane < 4; plane++) {
-            BufferedImage image = dumper.drawMap(plane);
-            String dirname = String.format("./out/mapgen/versions/%s/fullplanes/base", version);
-            String filename = String.format("plane_%s.png", plane);
-            File outputfile = fileWithDirectoryAssurance(dirname, filename);
-            System.out.println(outputfile);
-            ImageIO.write(image, "png", outputfile);
-        }
+        // Draw the planes
+//        for (int plane = 0; plane < 4; plane++) {
+//            BufferedImage image = dumper.drawMap(plane);
+//            String dirname = String.format("./out/mapgen/versions/%s/fullplanes/base", version);
+//            String filename = String.format("plane_%s.png", plane);
+//            File outputfile = fileWithDirectoryAssurance(dirname, filename);
+//            System.out.println(outputfile);
+//            ImageIO.write(image, "png", outputfile);
+//        }
 
+        // Dump icon data and images
         String dirname = String.format("./out/mapgen/versions/%s", version);
         String filename = "minimapIcons.json";
         File outputfile = fileWithDirectoryAssurance(dirname, filename);
@@ -75,11 +75,31 @@ public class MapExport {
         out.write(json);
         out.close();
 
+        // Dump Jagex mapID data
         filename = "worldMapDefinitions.json";
         outputfile = fileWithDirectoryAssurance(dirname, filename);
         out = new PrintWriter(outputfile);
         List<WorldMapDefinition> wmds = getWorldMapDefinitions(store);
         json = gson.toJson(wmds);
+        out.write(json);
+        out.close();
+
+        // Output the highest and lowest X and Y values drawn on the plane for coordinate transforms
+        regionLoader.calculateBounds();
+        dirname = String.format("./out/mapgen/versions/%s", version);
+        filename = "coordinateData.json";
+        outputfile = fileWithDirectoryAssurance(dirname, filename);
+        out = new PrintWriter(outputfile);
+        Map<String, Integer> coords = new HashMap<>();
+        coords.put("minTileX", regionLoader.getLowestX().getBaseX());
+        coords.put("minSquareX", regionLoader.getLowestX().getRegionX());
+        coords.put("minTileY", regionLoader.getLowestY().getBaseY());
+        coords.put("minSquareY", regionLoader.getLowestY().getRegionY());
+        coords.put("maxTileX", regionLoader.getHighestX().getBaseX());
+        coords.put("maxSquareX", regionLoader.getHighestX().getRegionX());
+        coords.put("maxTileY", regionLoader.getHighestY().getBaseY());
+        coords.put("maxSquareY", regionLoader.getHighestY().getRegionY());
+        json = gson.toJson(coords);
         out.write(json);
         out.close();
     }
