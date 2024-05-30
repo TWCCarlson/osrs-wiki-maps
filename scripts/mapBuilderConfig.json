@@ -1,0 +1,12 @@
+{
+    "COMPOSITE_OPTS": {
+        "transparencyColor": 0,
+        "transparencyTolerance": 0,
+        "brightNessFraction": 1.0,
+        "contrastFraction": 1.0,
+        "grayscaleFraction": 0.0,
+        "blurRadius": 1,
+        "sourcePath": "fullplanes/base",
+        "outPath": "fullplanes/composites"
+    }
+}

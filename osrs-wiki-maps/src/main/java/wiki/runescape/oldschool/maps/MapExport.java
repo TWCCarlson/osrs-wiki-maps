@@ -35,7 +35,7 @@ import java.util.List;
 
 public class MapExport {
     private static RegionLoader regionLoader;
-    private static String version = "2024-05-15_c";
+    private static String version = "2024-05-29_a";
     public static void main(String[] args) throws Exception {
         version = args.length > 0 ? args[0] : version;
         Gson gson = new Gson();
@@ -59,7 +59,7 @@ public class MapExport {
 
         for (int plane = 0; plane < 4; plane++) {
             BufferedImage image = dumper.drawMap(plane);
-            String dirname = String.format("./out/mapgen/versions/%s/tiles/base", version);
+            String dirname = String.format("./out/mapgen/versions/%s/fullplanes/base", version);
             String filename = String.format("plane_%s.png", plane);
             File outputfile = fileWithDirectoryAssurance(dirname, filename);
             System.out.println(outputfile);

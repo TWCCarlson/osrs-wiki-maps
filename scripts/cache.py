@@ -1,4 +1,3 @@
-from os import mkdir
 import os.path
 from io import BytesIO
 import json
@@ -24,7 +23,8 @@ def make_output_folder(date_str: str, working_dir: str) -> str:
         out_folder = os.path.join(working_dir, f"{date_str}_{letter}")
         out_zip = out_folder + ".zip"
 
-    mkdir(out_folder)
+    if not os.path.exists(out_folder):
+        os.makedirs(out_folder)
     return out_folder
 
 
@@ -63,6 +63,7 @@ def download_xteas(cache_id, out_folder):
     for xtea in response.json():
         new_key = {}
         for key, val in xtea.items():
+            # Runelite expects region/keys, openrs2 provides mapsquare/key
             if key == "mapsquare":
                 new_key["region"] = val
             elif key == "key":

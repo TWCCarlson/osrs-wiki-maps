@@ -38,3 +38,7 @@ test/
 
 # profiling
 temp.dat
+
+
+*.pyc
+scripts/__pycache__/cache.cpython-312.pyc
