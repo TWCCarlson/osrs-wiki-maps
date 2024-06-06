@@ -8,6 +8,7 @@ import createCompositeImages
 import createZoomedPlanes
 import drawMapIcons
 import tileImages
+import restructureDirectory
 
 
 # fetchCache()
@@ -75,6 +76,11 @@ if __name__ == "__main__":
 	sliceTime = time.time()
 	tileImages.actionRoutine(outputDir)
 	print(f"Slicing took: {time.time()-sliceTime}")
+
+	# 7. Restructure the directory to match what's expected
+	dirTime = time.time()
+	restructureDirectory.actionRoutine(outputDir)
+	print(f"Directory fix took: {time.time()-dirTime}")
 
 	# Done
 	print(f"Finished in {time.time()-startTime} seconds")
