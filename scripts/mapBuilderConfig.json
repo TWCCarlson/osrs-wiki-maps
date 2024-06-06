@@ -4,7 +4,7 @@
         "transparencyTolerance": 0,
         "brightNessFraction": 1.0,
         "contrastFraction": 1.0,
-        "grayscaleFraction": 0.0,
+        "grayscaleFraction": 0.2,
         "blurRadius": 1,
         "sourcePath": "fullplanes/base",
         "outPath": "fullplanes/composites"
@@ -26,5 +26,71 @@
         },
         "sourcePath": "fullplanes/composites",
         "outPath": "fullplanes/scaled"
+    },
+    "ICON_OPTS": {
+        "planePath": "fullplanes/scaled",
+        "iconPath": "icons",
+        "iconDefs": "minimapIcons.json",
+        "zoomLevelHasIcons": {
+            "-3": false,
+            "-2": false,
+            "-1": false,
+            "0": true,
+            "1": true,
+            "2": true,
+            "3": true
+        },
+        "outPath": "fullplanes/icons"
+    },
+    "TILER_OPTS": {
+        "layerPath": "fullplanes/icons",
+        "outPath": "dzsave",
+        "baselineZoomLevel": 2,
+        "backgroundColor": [0, 0, 0],
+        "backgroundThreshold": 0,
+        "imagePaths": {
+            "0": {
+                "-3": "fullplanes/scaled",
+                "-2": "fullplanes/scaled",
+                "-1": "fullplanes/scaled",
+                "0": "fullplanes/icons",
+                "1": "fullplanes/icons",
+                "2": "fullplanes/icons",
+                "3": "fullplanes/icons"
+            },
+            "1": {
+                "-3": "fullplanes/scaled",
+                "-2": "fullplanes/scaled",
+                "-1": "fullplanes/scaled",
+                "0": "fullplanes/icons",
+                "1": "fullplanes/icons",
+                "2": "fullplanes/icons",
+                "3": "fullplanes/icons"
+            },
+            "2": {
+                "-3": "fullplanes/scaled",
+                "-2": "fullplanes/scaled",
+                "-1": "fullplanes/scaled",
+                "0": "fullplanes/icons",
+                "1": "fullplanes/icons",
+                "2": "fullplanes/icons",
+                "3": "fullplanes/icons"
+            },
+            "3": {
+                "-3": "fullplanes/scaled",
+                "-2": "fullplanes/scaled",
+                "-1": "fullplanes/scaled",
+                "0": "fullplanes/icons",
+                "1": "fullplanes/icons",
+                "2": "fullplanes/icons",
+                "3": "fullplanes/icons"
+            }
+        }
+    },
+    "DIR_OPTS": {
+        "multiprocessingEnabled": true,
+        "dzPath": "dzsave",
+        "outPath": "tiles/rendered",
+        "baselineZoomLevel": 2
     }
 }

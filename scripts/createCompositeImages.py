@@ -1,7 +1,5 @@
 import os.path
 from platform import system
-from collections import defaultdict
-from glob import glob
 import math
 import json
 
@@ -17,14 +15,14 @@ import pyvips as pv
 
 
 def styleLayer(layerImage, brightnessFrac, contrastFrac, grayscaleFrac, blurRadius):
-		# Brightness and contrast
+	# Brightness and contrast
+	# This is done via a linear equation out = contrast * in + brightness
 	brightnessValue = ((brightnessFrac * 255) - 255) / 2
-	# contrastValue = ((contrastFraction * 255) - 255) / 2
-	# contrastCorrection = (259 * (contrastValue + 255)) / (255 * (259 - contrastValue))
 	layerImage = contrastFrac * (layerImage - 127) + (127 + brightnessValue)
 
 	# Grayscale
 	if 0 < grayscaleFrac <= 1:
+		# Convert to .hsv, adjust the saturation band, and convert back to srgb
 		layerImage = (layerImage.colourspace("hsv") * [1, (1-grayscaleFrac), 1]).colourspace("srgb")
 
 	# Color Palette
@@ -46,46 +44,7 @@ def styleLayer(layerImage, brightnessFrac, contrastFrac, grayscaleFrac, blurRadi
 	return layerImage
 
 
-def createComposites(sourcePath, outPath, transparencyColor, transparencyTolerance, styleOptions):
-	# Locate plane images
-	planeImagePaths = [os.path.normpath(path) for path in glob(os.path.join(sourcePath, "*.png"))]
-	# raise error if plane images not found in directory
-
-	# Load images, ensuring the right order
-	planeDict = defaultdict(pv.Image)
-	for planeImagePath in planeImagePaths:
-		imageName = os.path.splitext(os.path.basename(planeImagePath))[0]
-		planeNum = int(imageName.split("_")[-1])
-		planeImage = pv.Image.new_from_file(planeImagePath)
-		planeDict[planeNum] = planeImage
-	
-	# Initialize with the base plane
-	baseImage = planeDict[0]
-	baseImage.write_to_file(os.path.join(outPath, f"plane_0.png"))
-
-	# Stack the other layers on top of it
-	for planeNum in range(0, len(planeImagePaths)):
-		# Style the underlay plane
-		styledBaseImage = styleLayer(baseImage, *styleOptions)
-		if planeNum == 0:
-			# There is nothing to overlay on the base plane
-			continue
-
-		# Get the overlay plane
-		overlayImage = planeDict[planeNum]
-
-		# Create a mask treating non-background pixels as 255 from the overlay
-		mask = (abs(overlayImage - transparencyColor) > transparencyTolerance).bandor()
-
-		# Insert overlay pixels where the mask is true, and base pixels where false
-		styledCompositeImage = mask.ifthenelse(overlayImage, styledBaseImage)
-		styledCompositeImage.write_to_file(os.path.join(outPath, f"plane_{planeNum}.png"))
-
-		# Separately, merge the overlay with the not-styled underlay to become the underlay for the next plane
-		baseImage = mask.ifthenelse(overlayImage, baseImage)
-
-
-def actionRoutine(basePath):
+def createComposites(planeNum, planePathDict):
 	"""
 		Intended to be called as part of the map tile generation automation
 		Currently relies on the default values found in mapBuilderConfig.json
@@ -112,7 +71,7 @@ def actionRoutine(basePath):
 			- This is used to reverse-calculate the amplitude cutoff values of the blur assuming a sigma value of 1
 			- A radius of zero means no blur takes place, large radii increase processing time
 	"""
-	# Use default values found in mapBuilderConfig.py
+	# Use default config values found in mapBuilderConfig.py
 	with open("./scripts/mapBuilderConfig.json") as configFile:
 		configOpts = json.load(configFile)["COMPOSITE_OPTS"]
 	
@@ -122,13 +81,40 @@ def actionRoutine(basePath):
 	contrastFraction = configOpts["contrastFraction"]
 	grayscaleFraction = configOpts["grayscaleFraction"]
 	blurRadius = configOpts["blurRadius"]
-	sourcePath = configOpts["sourcePath"]
-	outPath = configOpts["outPath"]
-
-	sourcePath = os.path.join(basePath, sourcePath)
-	outPath = os.path.join(basePath, outPath)
-	if not os.path.exists(outPath):
-		os.makedirs(outPath)
 	underlayStyleOpts = [brightNessFraction, contrastFraction, grayscaleFraction, blurRadius]
 
-	createComposites(sourcePath, outPath, transparencyColor, transparencyTolerance, underlayStyleOpts)
+	# For all planes beneath the planeNum, create a stacked composite
+	# Load the base images
+	baseImage = pv.Image.new_from_file(planePathDict[0])
+
+	# Composite all the planes beneath this one
+	if planeNum > 0:
+		underlayPlanes = list()
+		print(f"Merging 0-{planeNum}")
+		for underlayID in range(0, planeNum):
+			underlayPlanes.append(pv.Image.new_from_file(planePathDict[underlayID]))
+		baseImage = createUnderlay(underlayPlanes, transparencyColor, transparencyTolerance, underlayStyleOpts)
+
+		# Then style the result
+		styledBaseImage = styleLayer(baseImage, *underlayStyleOpts)
+
+		# Load in the next plane
+		overlayImage = pv.Image.new_from_file(planePathDict[planeNum])
+
+		# Create a mask treating non-background pixels as 255 from the overlay
+		mask = (abs(overlayImage - transparencyColor) > transparencyTolerance).bandor()
+
+		# Insert overlay pixels where the mask is true, and base pixels where false
+		baseImage = mask.ifthenelse(overlayImage, styledBaseImage)
+
+	return baseImage
+
+
+def createUnderlay(underlayImages, transparencyColor, transparencyTolerance, underlayStyleOpts):
+	# Creates an underlay image from the list of supplied images
+	baseImage = underlayImages[0]
+	if len(underlayImages) > 0:
+		for image in underlayImages[1:]:
+			mask = (abs(image - transparencyColor) > transparencyTolerance).bandor()
+			baseImage = mask.ifthenelse(image, baseImage)
+	return baseImage
