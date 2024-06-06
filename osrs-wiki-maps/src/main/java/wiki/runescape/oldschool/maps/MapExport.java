@@ -99,6 +99,9 @@ public class MapExport {
         coords.put("maxSquareX", regionLoader.getHighestX().getRegionX());
         coords.put("maxTileY", regionLoader.getHighestY().getBaseY());
         coords.put("maxSquareY", regionLoader.getHighestY().getRegionY());
+        coords.put("tilePixelLength", 4);
+        coords.put("squareTileLength", 64);
+        coords.put("squarePixelLength", 256);
         json = gson.toJson(coords);
         out.write(json);
         out.close();

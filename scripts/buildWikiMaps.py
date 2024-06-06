@@ -6,6 +6,7 @@ import os.path
 import cache
 import createCompositeImages
 import createZoomedPlanes
+import drawMapIcons
 
 
 # fetchCache()
@@ -62,6 +63,12 @@ if __name__ == "__main__":
 		print(f"RESCALING {planeNum}")
 		createZoomedPlanes.rescalePlane(planeImage, planeNum, outputDir)
 	print(f"Vips operations took: {time.time()-startTime}")
+
+	# 5. Draw icons onto each plane and zoom level
+	print("DRAWING ICONS")
+	pilTime = time.time()
+	drawMapIcons.actionRoutine(outputDir)
+	print(f"Icon drawing took: {time.time()-pilTime}")
 
 	# Done
 	print(f"Finished in {time.time()-startTime} seconds")
