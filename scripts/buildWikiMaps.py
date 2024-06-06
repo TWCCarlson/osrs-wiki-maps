@@ -7,6 +7,7 @@ import cache
 import createCompositeImages
 import createZoomedPlanes
 import drawMapIcons
+import tileImages
 
 
 # fetchCache()
@@ -69,6 +70,11 @@ if __name__ == "__main__":
 	pilTime = time.time()
 	drawMapIcons.actionRoutine(outputDir)
 	print(f"Icon drawing took: {time.time()-pilTime}")
+
+	# 6. Slice the rendered planes and rescale
+	sliceTime = time.time()
+	tileImages.actionRoutine(outputDir)
+	print(f"Slicing took: {time.time()-sliceTime}")
 
 	# Done
 	print(f"Finished in {time.time()-startTime} seconds")
