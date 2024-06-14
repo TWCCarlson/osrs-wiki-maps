@@ -2,7 +2,7 @@
     "COMPOSITE_OPTS": {
         "transparencyColor": 0,
         "transparencyTolerance": 0,
-        "brightNessFraction": 1.0,
+        "brightnessFraction": 1.0,
         "contrastFraction": 1.0,
         "grayscaleFraction": 0.2,
         "blurRadius": 1,
@@ -48,49 +48,16 @@
         "baselineZoomLevel": 2,
         "backgroundColor": [0, 0, 0],
         "backgroundThreshold": 0,
-        "imagePaths": {
-            "0": {
-                "-3": "fullplanes/scaled",
-                "-2": "fullplanes/scaled",
-                "-1": "fullplanes/scaled",
-                "0": "fullplanes/icons",
-                "1": "fullplanes/icons",
-                "2": "fullplanes/icons",
-                "3": "fullplanes/icons"
-            },
-            "1": {
-                "-3": "fullplanes/scaled",
-                "-2": "fullplanes/scaled",
-                "-1": "fullplanes/scaled",
-                "0": "fullplanes/icons",
-                "1": "fullplanes/icons",
-                "2": "fullplanes/icons",
-                "3": "fullplanes/icons"
-            },
-            "2": {
-                "-3": "fullplanes/scaled",
-                "-2": "fullplanes/scaled",
-                "-1": "fullplanes/scaled",
-                "0": "fullplanes/icons",
-                "1": "fullplanes/icons",
-                "2": "fullplanes/icons",
-                "3": "fullplanes/icons"
-            },
-            "3": {
-                "-3": "fullplanes/scaled",
-                "-2": "fullplanes/scaled",
-                "-1": "fullplanes/scaled",
-                "0": "fullplanes/icons",
-                "1": "fullplanes/icons",
-                "2": "fullplanes/icons",
-                "3": "fullplanes/icons"
-            }
-        }
+        "imagePath": "fullplanes/scaled"
     },
     "DIR_OPTS": {
         "multiprocessingEnabled": true,
         "dzPath": "dzsave",
         "outPath": "tiles/rendered",
         "baselineZoomLevel": 2
+    },
+    "MAPID_OPTS": {
+        "baseTilePath": "tiles/rendered/-1/2",
+        "mapIDoutPath": "tiles/rendered"
     }
 }

@@ -19,7 +19,6 @@ def styleLayer(layerImage, brightnessFrac, contrastFrac, grayscaleFrac, blurRadi
 	# This is done via a linear equation out = contrast * in + brightness
 	brightnessValue = ((brightnessFrac * 255) - 255) / 2
 	layerImage = contrastFrac * (layerImage - 127) + (127 + brightnessValue)
-
 	# Grayscale
 	if 0 < grayscaleFrac <= 1:
 		# Convert to .hsv, adjust the saturation band, and convert back to srgb
@@ -56,7 +55,7 @@ def createComposites(planeNum, planePathDict):
 		- transparencyTolerance = 0
 			- The amount of difference allowed, per band, between a pixel's value and the transparency
 			- A pixel is ignored if abs(overlayPixel - transparencyColor) > transparencyTolerance in all bands
-		- brightNessFraction = 1.0
+		- brightnessFraction = 1.0
 			- Brightness factor between 0.0 and 2.0, inclusive
 			- Scaled such that a value of 1.0 has no impact, 0.0 results in black, 2.0 results in white
 		- contrastFraction = 1.0
@@ -77,11 +76,11 @@ def createComposites(planeNum, planePathDict):
 	
 	transparencyColor = configOpts["transparencyColor"]
 	transparencyTolerance = configOpts["transparencyTolerance"]
-	brightNessFraction = configOpts["brightNessFraction"]
+	brightnessFraction = configOpts["brightnessFraction"]
 	contrastFraction = configOpts["contrastFraction"]
 	grayscaleFraction = configOpts["grayscaleFraction"]
 	blurRadius = configOpts["blurRadius"]
-	underlayStyleOpts = [brightNessFraction, contrastFraction, grayscaleFraction, blurRadius]
+	underlayStyleOpts = [brightnessFraction, contrastFraction, grayscaleFraction, blurRadius]
 
 	# For all planes beneath the planeNum, create a stacked composite
 	# Load the base images

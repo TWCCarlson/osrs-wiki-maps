@@ -98,14 +98,10 @@ def createTiles(imagePath, outPath, coordinateData, baselineZoomLevel, backgroun
 						skip_blanks=backgroundThreshold)
 
 
-def createTiles_byplane(imagePaths, outPath, coordinateData, baselineZoomLevel, backgroundColor, backgroundThreshold):
+def createTiles_byplane(imagePath, outPath, coordinateData, baselineZoomLevel, backgroundColor, backgroundThreshold):
 	# Identify images
 	# Only some of the images may have icons per the passed in dict
-	imageFilePaths = list()
-	for planeNum, zoomPaths in imagePaths.items():
-		for zoomLevel, zoomPath in zoomPaths.items():
-			filePath = os.path.join(zoomPath, f"plane_{planeNum}/{zoomLevel}.png")
-			imageFilePaths.append(filePath)
+	imageFilePaths = glob.glob(os.path.join(imagePath, f"**/*.png"))
 
 	# Vips is very memory/cpu efficient for dzsave, and the files are small
 	for imagePath in imageFilePaths:
@@ -114,10 +110,9 @@ def createTiles_byplane(imagePaths, outPath, coordinateData, baselineZoomLevel, 
 
 def actionRoutine(basePath=None):
 	"""
-		Executes a dzsave operation on a one-layer basis
+		Executes a dzsave operation on one layer at a time
 		The result is a directory of sliced tiles using the scheme of the layout variable
 	"""
-	basePath = "./osrs-wiki-maps/out/mapgen/versions/2024-05-29_a"
 	with open("./scripts/mapBuilderConfig.json") as configFile:
 		config = json.load(configFile)
 		configOpts = config["TILER_OPTS"]
@@ -131,17 +126,13 @@ def actionRoutine(basePath=None):
 	baselineZoomLevel = configOpts["baselineZoomLevel"]
 	backgroundColor = configOpts["backgroundColor"]
 	backgroundThreshold = configOpts["backgroundThreshold"]
-	imagePaths = configOpts["imagePaths"]
-
-	# Merge the base path with the structure paths in the config opt
-	for planeNum, zoomPaths in imagePaths.items():
-		for zoomLevel, zoomPath in zoomPaths.items():
-			zoomPaths[zoomLevel] = os.path.join(basePath, zoomPath)
+	imagePath = configOpts["imagePath"]
 
 	layerPath = os.path.join(basePath, layerPath)
 	outPath = os.path.join(basePath, outPath)
-	
-	createTiles_byplane(imagePaths, outPath, coordinateData, baselineZoomLevel, backgroundColor, backgroundThreshold)
+	imagePath = os.path.join(basePath, imagePath)
+
+	createTiles_byplane(imagePath, outPath, coordinateData, baselineZoomLevel, backgroundColor, backgroundThreshold)
 
 if __name__ == "__main__":
 	startTime = time.time()

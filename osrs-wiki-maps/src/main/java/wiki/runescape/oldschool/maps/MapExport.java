@@ -9,7 +9,11 @@ import net.runelite.cache.SpriteManager;
 import net.runelite.cache.definitions.AreaDefinition;
 import net.runelite.cache.definitions.ObjectDefinition;
 import net.runelite.cache.definitions.SpriteDefinition;
+import net.runelite.cache.definitions.WorldMapCompositeDefinition;
+import net.runelite.cache.definitions.ZoneDefinition;
+import net.runelite.cache.definitions.MapSquareDefinition;
 import net.runelite.cache.definitions.WorldMapDefinition;
+import net.runelite.cache.definitions.loaders.WorldMapCompositeLoader;
 import net.runelite.cache.definitions.loaders.WorldMapLoader;
 import net.runelite.cache.fs.Archive;
 import net.runelite.cache.fs.ArchiveFiles;
@@ -76,13 +80,43 @@ public class MapExport {
         out.close();
 
         // Dump Jagex mapID data
-        filename = "worldMapDefinitions.json";
-        outputfile = fileWithDirectoryAssurance(dirname, filename);
-        out = new PrintWriter(outputfile);
-        List<WorldMapDefinition> wmds = getWorldMapDefinitions(store);
-        json = gson.toJson(wmds);
-        out.write(json);
-        out.close();
+        Index index = store.getIndex(IndexType.WORLDMAP);
+        Archive archive = index.getArchive(1);
+        Storage storage = store.getStorage();
+        byte[] archiveData = storage.loadArchive(archive);
+        ArchiveFiles files = archive.getFiles(archiveData);
+
+        WorldMapCompositeLoader loader = new WorldMapCompositeLoader();
+        for (FSFile file : files.getFiles()) {
+            WorldMapCompositeDefinition wmd = loader.load(file.getContents());
+            int mapid = file.getFileId();
+
+            List<MapSquareDefinition> mapSquareDefinitions = new ArrayList<>(wmd.getMapSquareDefinitions());
+            List<ZoneDefinition> zoneDefinitions = new ArrayList<>(wmd.getZoneDefinitions());
+
+            String squareDefsDir = String.format("./out/mapgen/versions/%s/worldMapCompositeDefinitions/squares", version);
+            String msFilename = String.format("mapSquareDefinitions_%s.json", mapid);
+            outputfile = fileWithDirectoryAssurance(squareDefsDir, msFilename);
+            out = new PrintWriter(outputfile);
+            json = gson.toJson(mapSquareDefinitions);
+            out.write(json);
+            out.close();
+
+            String zoneDefsDir = String.format("./out/mapgen/versions/%s/worldMapCompositeDefinitions/zones", version);
+            String zFilename = String.format("zoneDefinitions_%s.json", mapid);
+            outputfile = fileWithDirectoryAssurance(zoneDefsDir, zFilename);
+            out = new PrintWriter(outputfile);
+            json = gson.toJson(zoneDefinitions);
+            out.write(json);
+            out.close();
+        }
+//        filename = "worldMapDefinitions.json";
+//        outputfile = fileWithDirectoryAssurance(dirname, filename);
+//        out = new PrintWriter(outputfile);
+//        List<WorldMapDefinition> wmds = getWorldMapDefinitions(store);
+//        json = gson.toJson(wmds);
+//        out.write(json);
+//        out.close();
 
         // Output the highest and lowest X and Y values drawn on the plane for coordinate transforms
         regionLoader.calculateBounds();
@@ -102,6 +136,8 @@ public class MapExport {
         coords.put("tilePixelLength", 4);
         coords.put("squareTileLength", 64);
         coords.put("squarePixelLength", 256);
+        coords.put("squareZoneLength", 8);
+        coords.put("zonePixelLength", 32);
         json = gson.toJson(coords);
         out.write(json);
         out.close();

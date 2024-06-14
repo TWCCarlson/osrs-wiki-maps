@@ -6,7 +6,6 @@ import glob
 import multiprocessing
 from memory_profiler import memory_usage
 import json
-import shutil
 
 def removeSubdirectories(topLevelDir):
 	# Use DFS to find tree leaves and remove them
@@ -24,7 +23,6 @@ def removeSubdirectories(topLevelDir):
 def restructureDirectories(dzPath, outPath, coordinateData, baselineZoomLevel, multiprocessingEnabled):
 	# Grab the parent plane directory locations
 	planeDirectories = [os.path.normpath(path) for path in glob.glob(os.path.join(dzPath, "*/"))]
-
 	# Restructure on a plane by plane basis
 	if multiprocessingEnabled:
 		# Bundle with args for starmapping
@@ -38,8 +36,8 @@ def restructureDirectories(dzPath, outPath, coordinateData, baselineZoomLevel, m
 				if not os.path.exists(zoomLevelPath):
 					os.makedirs(zoomLevelPath)
 		# Assign cores to plane directories
-		# with multiprocessing.Pool() as pool:
-		# 	pool.starmap(restructureDirectory, argList)
+		with multiprocessing.Pool() as pool:
+			pool.starmap(restructureDirectory, argList)
 	else:
 		for directory in planeDirectories:
 			restructureDirectory(directory, outPath, coordinateData, baselineZoomLevel)
@@ -92,7 +90,7 @@ def renameFile(imagePath, outPath, coordinateData, baselineZoomLevel):
 	os.rename(imagePath, os.path.join(outputPath, f"{planeNum}_{x}_{y}.png"))
 
 
-def actionRoutine(basePath):
+def actionRoutine(basePath, mapID):
 	"""
 		pyvips' dzsave operation uses some specific output directory formats
 		These are not the output formats we want to use, so we need to modify the directories
@@ -114,7 +112,7 @@ def actionRoutine(basePath):
 	baselineZoomLevel = configOpts["baselineZoomLevel"]
 
 	dzPath = os.path.join(basePath, dzPath)
-	outPath = os.path.join(basePath, outPath)
+	outPath = os.path.join(basePath, outPath, mapID)
 
 	restructureDirectories(dzPath, outPath, coordinateData, baselineZoomLevel, multiprocessingEnabled)
 
@@ -122,6 +120,6 @@ def actionRoutine(basePath):
 if __name__ == "__main__":
 	startTime = time.time()
 	# restructureDirectories()
-	actionRoutine("./osrs-wiki-maps/out/mapgen/versions/2024-05-29_a")
+	actionRoutine("./osrs-wiki-maps/out/mapgen/versions/2024-05-29_a", "-1")
 	# print(f"Peak memory usage: {max(memory_usage(proc=restructureDirectories))}")
 	print(f"Runtime: {time.time()-startTime}")

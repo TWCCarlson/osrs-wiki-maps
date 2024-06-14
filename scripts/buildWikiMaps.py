@@ -10,6 +10,14 @@ import drawMapIcons
 import tileImages
 import restructureDirectory
 
+# runnerOS = system()
+# if runnerOS == "Windows":
+# Pyvips on windows is finnicky
+# Windows binaries are required: https://pypi.org/project/pyvips/, https://www.libvips.org/install.html
+LIBVIPS_VERSION = "8.15"
+vipsbin = os.path.join(os.getcwd(), f"vipsbin/vips-dev-{LIBVIPS_VERSION}/bin")
+os.environ['PATH'] = os.pathsep.join((vipsbin, os.environ['PATH']))
+import pyvips as pv
 
 # fetchCache()
 # fetchXTEA()
@@ -53,7 +61,7 @@ if __name__ == "__main__":
 	# The following steps are done plane-by-plane
 	for planeNum, planePath in planeImagePaths.items():
 		# 3. Create the composite image of the plane
-		print(f"COMPOSITING {planeNum}")
+		# print(f"COMPOSITING {planeNum}")
 		planeImage = createCompositeImages.createComposites(planeNum, planeImagePaths)
 		# outPath = f"./osrs-wiki-maps/out/mapgen/versions/2024-05-29_a/fullplanes/composites/"
 		# if not os.path.exists(outPath):
@@ -64,13 +72,16 @@ if __name__ == "__main__":
 		# Unfortunately pvyipvs can't handle icon insertion as-is, need to write to disk
 		print(f"RESCALING {planeNum}")
 		createZoomedPlanes.rescalePlane(planeImage, planeNum, outputDir)
+	# for planeNum, planePath in planeImagePaths.items():
+	# 	planeImage = pv.Image.new_from_file(planePath)
+	# 	createZoomedPlanes.rescalePlane(planeImage, planeNum, outputDir)
 	print(f"Vips operations took: {time.time()-startTime}")
 
 	# 5. Draw icons onto each plane and zoom level
-	print("DRAWING ICONS")
-	pilTime = time.time()
-	drawMapIcons.actionRoutine(outputDir)
-	print(f"Icon drawing took: {time.time()-pilTime}")
+	# print("DRAWING ICONS")
+	# pilTime = time.time()
+	# drawMapIcons.actionRoutine(outputDir)
+	# print(f"Icon drawing took: {time.time()-pilTime}")
 
 	# 6. Slice the rendered planes and rescale
 	sliceTime = time.time()
@@ -79,7 +90,7 @@ if __name__ == "__main__":
 
 	# 7. Restructure the directory to match what's expected
 	dirTime = time.time()
-	restructureDirectory.actionRoutine(outputDir)
+	restructureDirectory.actionRoutine(outputDir, "-1")
 	print(f"Directory fix took: {time.time()-dirTime}")
 
 	# Done
