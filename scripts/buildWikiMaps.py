@@ -9,6 +9,7 @@ import createZoomedPlanes
 import drawMapIcons
 import tileImages
 import restructureDirectory
+import insertIcons
 
 # runnerOS = system()
 # if runnerOS == "Windows":
@@ -69,29 +70,28 @@ if __name__ == "__main__":
 		# planeImage.write_to_file(os.path.join(outPath, f"plane_{planeNum}.png"))
 
 		# 4. Rescale the plane and save
-		# Unfortunately pvyipvs can't handle icon insertion as-is, need to write to disk
 		print(f"RESCALING {planeNum}")
 		createZoomedPlanes.rescalePlane(planeImage, planeNum, outputDir)
-	# for planeNum, planePath in planeImagePaths.items():
-	# 	planeImage = pv.Image.new_from_file(planePath)
-	# 	createZoomedPlanes.rescalePlane(planeImage, planeNum, outputDir)
 	print(f"Vips operations took: {time.time()-startTime}")
 
-	# 5. Draw icons onto each plane and zoom level
-	# print("DRAWING ICONS")
-	# pilTime = time.time()
-	# drawMapIcons.actionRoutine(outputDir)
-	# print(f"Icon drawing took: {time.time()-pilTime}")
+	# for planeNum, planePath in planeImagePaths.items():
+		# planeImage = pv.Image.new_from_file(planePath)
+		# createZoomedPlanes.rescalePlane(planeImage, planeNum, outputDir)
 
-	# 6. Slice the rendered planes and rescale
+	# 5. Slice the rendered planes and rescale
 	sliceTime = time.time()
 	tileImages.actionRoutine(outputDir)
 	print(f"Slicing took: {time.time()-sliceTime}")
 
-	# 7. Restructure the directory to match what's expected
+	# 6. Restructure the directory to match what's expected
 	dirTime = time.time()
 	restructureDirectory.actionRoutine(outputDir, "-1")
 	print(f"Directory fix took: {time.time()-dirTime}")
+
+	# Draw icons onto tiles
+	iconTime = time.time()
+	insertIcons.actionRoutine(outputDir)
+	print(f"Icon insertion took: {time.time()-iconTime}")
 
 	# Done
 	print(f"Finished in {time.time()-startTime} seconds")

@@ -29,6 +29,7 @@
     },
     "ICON_OPTS": {
         "planePath": "fullplanes/scaled",
+        "mapIDDirectory": "tiles/rendered",
         "iconPath": "icons",
         "iconDefs": "minimapIcons.json",
         "zoomLevelHasIcons": {
@@ -58,6 +59,8 @@
     },
     "MAPID_OPTS": {
         "baseTilePath": "tiles/rendered/-1/2",
-        "mapIDoutPath": "tiles/rendered"
+        "mapIDoutPath": "tiles/rendered",
+        "squareDefsPath": "worldMapCompositeDefinitions/squares",
+        "zoneDefsPath": "worldMapCompositeDefinitions/zones"
     }
 }

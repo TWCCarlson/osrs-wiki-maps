@@ -662,7 +662,6 @@ def renameFile(filePath, imageSquareDimensions, baselineZoom, coordData, outPath
 	
 	# If there is an old file in the way it should be replaced
 	newPath = os.path.join(outPath, newFileName)
-	print(newPath)
 	if os.path.exists(newPath):
 		os.remove(newPath)
 	os.rename(filePath, newPath)
@@ -733,16 +732,18 @@ def loadDefinitions(defsBasePath):
 	# Package and return
 	mapDefinitions = {
 		"squares": squareDefinitions,
-		"zones": zoneDefinitions,
+		"zones": zoneDefinitions
 	}
+	# Add the number of mapIDs
+	mapDefinitions["count"] = max(len(mapDefinitions["squares"]), len(mapDefinitions["zones"]))
 	return mapDefinitions
 
 def actionRoutine(basePath):
 	"""
 		Generates all tiles for mapIDs using the worldMapCompositeDefinitions files from RuneLite
 		Uses classes to store the data from the definitions and renders the images tile by tile
-		Each generated image is then rescaled, styled, composited, sliced per config file setting
-		The resulting image directory is fixed to match Jagex/Leaflet coordinates
+		Each generated image is then rescaled, styled, composited, sliced per config file settings
+		The resulting image directory is then restructured to match Jagex/Leaflet coordinates
 	"""
 	coordFilePath = os.path.join(basePath, "coordinateData.json")
 	with open(coordFilePath) as coordDataFile:
@@ -758,7 +759,7 @@ def actionRoutine(basePath):
 	baseTileDir = os.path.join(basePath, configData["MAPID_OPTS"]["baseTilePath"])
 
 	# Build the mapID
-	for mapID in range(0, len(mapDefinitions)):
+	for mapID in range(0, mapDefinitions["count"]):
 		# prevTime = time.time()
 		# print(f"MapID: {mapID}")
 		squareDefs = mapDefinitions["squares"][mapID]
@@ -772,4 +773,6 @@ def actionRoutine(basePath):
 	# buildMapID(mapID, mapDefinitions["squares"][mapID], mapDefinitions["zones"][mapID], coordData, baseTileDir, mapIDoutPath, configData)
 
 if __name__ == "__main__":
+	startTime = time.time()
 	actionRoutine("osrs-wiki-maps/out/mapgen/versions/2024-05-29_a")
+	print(f"MapID generation took {time.time()-startTime}s")
