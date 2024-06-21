@@ -89,9 +89,9 @@ if __name__ == "__main__":
 	print(f"Directory fix took: {time.time()-dirTime}")
 
 	# Draw icons onto tiles
-	iconTime = time.time()
-	insertIcons.actionRoutine(outputDir)
-	print(f"Icon insertion took: {time.time()-iconTime}")
+	# iconTime = time.time()
+	# insertIcons.actionRoutine(outputDir)
+	# print(f"Icon insertion took: {time.time()-iconTime}")
 
 	# Done
 	print(f"Finished in {time.time()-startTime} seconds")

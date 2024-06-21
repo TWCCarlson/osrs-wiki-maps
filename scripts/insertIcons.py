@@ -138,8 +138,6 @@ class IconManager:
 	def addIcon(self, iconObj: IconDefinition):
 		# Ingest the new icon
 		for zoomLevel in self.zoomLevelsWithIcons:
-			### Record which tiles the icon should be drawn on
-
 			# Icons are always drawn on the leaflet tile their game tile is in
 			tilePosX, tilePosY = iconObj.tilePosition[zoomLevel]
 			plane = iconObj.plane
@@ -148,11 +146,9 @@ class IconManager:
 			# Icons also need to be drawn on the tiles they spill into
 			overflowList = iconObj.overflowsInto[zoomLevel]
 			for overflowDirection in overflowList:
-				# Calculate the destination tile
 				xShift, yShift = overflowDirection
 				overflowX = tilePosX + xShift
 				overflowY = tilePosY + yShift
-				# Save it
 				self.tileOverflowIconList[zoomLevel][plane][(overflowX, overflowY)].append(iconObj)
 		
 def processIconlist(iconDefsPath, coordData, zoomLevelHasIcons, baselineZoomLevel):
@@ -188,10 +184,9 @@ def loadIcons(spritesPath):
 	return iconDict
 
 
-def insertIcons(directory, iconManager: IconManager, iconSprites, zoomLevel):
+def insertIcons(sourceDir, opDir, iconManager: IconManager, iconSprites, zoomLevel):
 	# Find the images to draw onto
-	tileImagePaths = glob.iglob(os.path.join(directory, "*.png"))
-	iconCount = 0
+	tileImagePaths = glob.iglob(os.path.join(opDir, "*.png"))
 	for tileImagePath in tileImagePaths:
 		plane, squareX, squareY = map(int, os.path.basename(tileImagePath).split(".png")[0].split("_"))
 
@@ -199,9 +194,7 @@ def insertIcons(directory, iconManager: IconManager, iconSprites, zoomLevel):
 		iconDefs = list()
 		if plane == 0:
 			for z in range(0, 3+1):
-				# Find icons which are located in the tile
 				iconDefs.extend(iconManager.tileOwnsIconList[zoomLevel][z][(squareX, squareY)])
-				# Find icons which overflow into the tile
 				iconDefs.extend(iconManager.tileOverflowIconList[zoomLevel][z][(squareX, squareY)])
 		else:
 			iconDefs.extend(iconManager.tileOwnsIconList[zoomLevel][plane][(squareX, squareY)])
@@ -240,8 +233,6 @@ def insertIcons(directory, iconManager: IconManager, iconSprites, zoomLevel):
 				iconY = y + (offsetY * 256) - math.ceil(iconImage.height/2) # top left vs bottom left origin
 				temp = temp.insert(iconImage, iconX, iconY, expand=False)
 
-			iconCount += 1
-
 			# Create a mask and insert to the iconlayer
 			mask = (temp[3] == 255)
 			iconLayer = mask.ifthenelse(temp, iconLayer)
@@ -249,16 +240,35 @@ def insertIcons(directory, iconManager: IconManager, iconSprites, zoomLevel):
 
 		# Merge the layers using a mask
 		layerMask = (iconLayer[3] == 255)
-		tileImage = pv.Image.new_from_file(tileImagePath)
+		sourceImagePath = os.path.join(sourceDir, f"{plane}_{squareX}_{squareY}.png")
+		tileImage = pv.Image.new_from_file(sourceImagePath)
 		outImage = layerMask.ifthenelse(iconLayer[0:3], tileImage)
 
 		# The image needs to be saved to a temporary file, vips reads from the original while writing
 		outPath = os.path.join(os.path.dirname(tileImagePath), f"{plane}_{squareX}_{squareY}-icon.png")
 		outImage.write_to_file(outPath)
-		# The original image can then be removed
-		os.remove(tileImagePath)
-		# And the new one renamed
-		os.rename(outPath, tileImagePath)
+		# # The original image can then be removed
+		# os.remove(tileImagePath)
+		# # And the new one renamed
+		# os.rename(outPath, tileImagePath)
+
+
+def createIconManager(basePath):
+	"""
+		Returns an icon manager loaded with a pre-processed list of icons
+	"""
+	coordFilePath = os.path.join(basePath, "coordinateData.json")
+	with open(coordFilePath) as coordDataFile:
+		coordData = json.load(coordDataFile)
+	with open("./scripts/mapBuilderConfig.json") as configFile:
+		configData = json.load(configFile)
+
+	zoomLevelHasIcons = configData["ICON_OPTS"]["zoomLevelHasIcons"]
+	baselineZoomLevel = configData["ZOOM_OPTS"]["baselineZoomLevel"]
+	defsPath = configData["ICON_OPTS"]["iconDefs"]
+	defsPath = os.path.join(basePath, defsPath)
+
+	return processIconlist(defsPath, coordData, zoomLevelHasIcons, baselineZoomLevel)
 
 
 def actionRoutine(basePath):
@@ -290,25 +300,29 @@ def actionRoutine(basePath):
 	iconSprites = loadIcons(spritesPath)
 
 	# MapID directories will need to use their definitions to make sure icons are properly located
-	# mapID_dirs = glob.iglob(os.path.join(mapIDPath, "**/"))
-	# for mapID in mapID_dirs:
-	# 	for zoomLevel in (int(zl) for zl in zoomLevelHasIcons if zoomLevelHasIcons[zl]):
-	# 		operationDir = os.path.join(mapID, zoomLevel)
-	# 		print(operationDir)
+	mapID_dirs = glob.iglob(os.path.join(mapIDPath, "**/"))
+	for mapID_dir in mapID_dirs:
+		mapID = os.path.basename(os.path.normpath(mapID_dir))
+		# Ignore mapID -1
+		if mapID == "-1":
+			continue
+		for zoomLevel in (zl for zl in zoomLevelHasIcons if zoomLevelHasIcons[zl]):
+			operationDir = os.path.join(mapID_dir, zoomLevel)
+			basePlaneDir = os.path.join(mapIDPath, "-1", f"{zoomLevel}")
 			# Load definitions files
 			# Need the source/display squares from zones and squares to 
-			# with open(os.path.join(squareDefsPath, f"mapSquareDefinitions_{mapID}")) as squareDefsFile:
-			# 	squareDefs = json.load(squareDefsFile)
-			# with open(os.path.join(zoneDefsPath, f"zoneDefinitions_{mapID}")) as zoneDefsFile:
-			# 	zoneDefs = json.load(zoneDefsFile)
-			# insertIcons(operationDir, squareDefs, zoneDefs)
-	# 		break
-	# 	break
+			with open(os.path.join(squareDefsPath, f"mapSquareDefinitions_{mapID}.json")) as squareDefsFile:
+				squareDefs = json.load(squareDefsFile)
+			with open(os.path.join(zoneDefsPath, f"zoneDefinitions_{mapID}.json")) as zoneDefsFile:
+				zoneDefs = json.load(zoneDefsFile)
+			insertIcons(basePlaneDir, operationDir, iconManager, iconSprites, zoomLevel, squareDefs, zoneDefs)
+		# 	break
+		# break
 
 	# For mapID -1 there is no definition to manage
-	for zoomLevel in (int(zl) for zl in zoomLevelHasIcons if zoomLevelHasIcons[zl]):
-		basePlaneDir = os.path.join(mapIDPath, "-1", f"{zoomLevel}")
-		insertIcons(basePlaneDir, iconManager, iconSprites, zoomLevel)
+	# for zoomLevel in (int(zl) for zl in zoomLevelHasIcons if zoomLevelHasIcons[zl]):
+	# 	basePlaneDir = os.path.join(mapIDPath, "-1", f"{zoomLevel}")
+	# 	insertIcons(basePlaneDir, basePlaneDir, iconManager, iconSprites, zoomLevel)
 			
 	# print(mapID_dirs)
 
