@@ -120,7 +120,7 @@ public class MapExport {
 
         // Output the highest and lowest X and Y values drawn on the plane for coordinate transforms
         regionLoader.calculateBounds();
-        dirname = String.format("./out/mapgen/versions/%s", version);
+        dirname = String.format("./", version);
         filename = "coordinateData.json";
         outputfile = fileWithDirectoryAssurance(dirname, filename);
         out = new PrintWriter(outputfile);

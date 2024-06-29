@@ -58,7 +58,7 @@
         "baselineZoomLevel": 2
     },
     "MAPID_OPTS": {
-        "baseTilePath": "tiles/rendered/-1/2",
+        "baseTilePath": "tiles/base/2",
         "mapIDoutPath": "tiles/rendered",
         "squareDefsPath": "worldMapCompositeDefinitions/squares",
         "zoneDefsPath": "worldMapCompositeDefinitions/zones"

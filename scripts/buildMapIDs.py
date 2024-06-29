@@ -1,776 +1,581 @@
-import glob
-import os.path
-import json
-import time
-import heapq
-from collections import defaultdict
-from dataclasses import dataclass, field
-from memory_profiler import memory_usage
-import pprint
-import math
+from config import MapBuilderConfig, GlobalCoordinateDefinition
+GCS = GlobalCoordinateDefinition.fromJSON("./osrs-wiki-maps/coordinateData.json")
+CONFIG = MapBuilderConfig.fromJSON("./scripts/mapBuilderConfig.json")
+from definitions import (SquareDefinition, ZoneDefinition, IconDefinition)
+from images import PlaneImage, SquareImage, ZoneImage, IconImage
+from mapelements import (MapPlane, MapSquare, MapZone, MapIcon, MapMosaic,
+						 MapSquareOfZones)
 
-# Pyvips on windows is finnicky
-# Windows binaries are required: https://pypi.org/project/pyvips/, https://www.libvips.org/install.html
+from collections import defaultdict
+import math
+import pprint
+from copy import deepcopy
+import os
+import time
+import json
+import glob
+
+### Pyvips import
+# Windows binaries are required: 
+# https://pypi.org/project/pyvips/
+# https://www.libvips.org/install.html
 LIBVIPS_VERSION = "8.15"
 vipsbin = os.path.join(os.getcwd(), f"vipsbin/vips-dev-{LIBVIPS_VERSION}/bin")
 os.environ['PATH'] = os.pathsep.join((vipsbin, os.environ['PATH']))
 # os.environ['VIPS_PROFILE'] = "1"
 import pyvips as pv
-# logging.basicConfig(level = logging.DEBUG)
 
-@dataclass(order=True)
-class mapSquare():
-	sort_index: tuple = field(init=False, repr=False)
-	displaySquareY: int
-	displaySquareX: int
-	sourceSquareY: int = field(compare=False)
-	sourceSquareX: int = field(compare=False)
-	level: int = field(compare=False)
-	tilePath: int = field(compare=False)
-	coordData: dict = field(compare=False)
 
-	def __post_init__(self):
-		# Sort with descending y
-		self.sort_index = (-self.displaySquareY, self.displaySquareX)
-
-	def fetchSquare(self):
-		# Fetch the mapSquare image if it exists
-		sourcePath = os.path.join(self.tilePath, f"{self.level}_{self.sourceSquareX}_{self.sourceSquareY}.png")
-		
-		if os.path.exists(sourcePath):
-			# print(f"\t {self.level}_{self.sourceSquareX}_{self.sourceSquareY}.png FOUND")
-			return pv.Image.new_from_file(sourcePath)
-		else:
-			# If it doesn't exist, return a blank image
-			# print(f"\t {self.level}_{self.sourceSquareX}_{self.sourceSquareY}.png NOT EXIST")
-			return pv.Image.black(self.coordData["squarePixelLength"], self.coordData["squarePixelLength"], bands=3).copy(interpretation="srgb")
-
-	def __eq__(self, other):
-		if isinstance(other, mapSquare):
-			return (self.displaySquareY, self.displaySquareX) == (other.displaySquareY, self.displaySquareX)
-		elif isinstance(other, tuple):
-			return (self.displaySquareY, self.displaySquareX) == other
-		return False
-
-	def __hash__(self):
-		# Only hash with the display squares for `in` checks
-		return hash((self.displaySquareY, self.displaySquareX))
-	
-	def __repr__(self):
-		return f"mapSquare:({self.sourceSquareX},{self.sourceSquareY})->({self.displaySquareX},{self.displaySquareY})"
-
-@dataclass(order=True)
-class mapZone():
-	sort_index: int = field(init=False, repr=False)
-	displaySquareY: int
-	displaySquareX: int
-	displayZoneY: int
-	displayZoneX: int
-	sourceSquareY: int = field(compare=False)
-	sourceSquareX: int = field(compare=False)
-	sourceZoneY: int = field(compare=False)
-	sourceZoneX: int = field(compare=False)
-	level: int = field(compare=False)
-	tilePath: int = field(compare=False)
-	coordData: dict = field(compare=False)
-
-	def __post_init__(self):
-		# Sort with descending y
-		self.sort_index = (-self.displaySquareY, self.displaySquareX, -self.displayZoneY, self.displayZoneX)
-
-	def fetchZone(self):
-		# Load the zone image if it exists
-		sourcePath = os.path.join(self.tilePath, f"{self.level}_{self.sourceSquareX}_{self.sourceSquareY}.png")
-		if os.path.exists(sourcePath):
-			sourceSquare = pv.Image.new_from_file(sourcePath)
-			# Crop out the zone
-			zoneSideLength = self.coordData["zonePixelLength"]
-			sourceZoneX_px = self.sourceZoneX * zoneSideLength
-			sourceZoneY_px = (self.coordData["squareZoneLength"] - self.sourceZoneY - 1) * zoneSideLength
-			return sourceSquare.crop(sourceZoneX_px, sourceZoneY_px, zoneSideLength, zoneSideLength)
-		else:
-			# Return a blank image
-			return pv.Image.black(self.coordData["zonePixelLength"], self.coordData["zonePixelLength"], bands=3).copy(interpretation="srgb")
-
-	def __eq__(self, other):
-		if isinstance(other, mapSquare):
-			selfData = (self.displaySquareY, self.displaySquareX, self.displayZoneY, self.displayZoneX)
-			otherData = (other.displaySquareY, self.displaySquareX, self.displayZoneY, self.displayZoneX)
-			return selfData == otherData
-		elif isinstance(other, tuple):
-			selfData = (self.displaySquareY, self.displaySquareX, self.displayZoneY, self.displayZoneX)
-			return selfData == other
-		return False
-
-	def __hash__(self):
-		# Only hash with the display squares for `in` checks
-		return hash((self.displaySquareY, self.displaySquareX, self.displayZoneY, self.displayZoneX))
-
-	def __repr__(self):
-		return f"mapZone({self.sourceSquareX},{self.sourceSquareY}):[{self.sourceZoneX},{self.sourceZoneY}] -> ({self.displaySquareX},{self.displaySquareY}):[{self.displayZoneX},{self.displayZoneY}]"
-
-class mapSquareOfZones:
-	def __init__(self, sideLength: int, zoneSideLength: int):
-		# Initialize the list of zone objects to default blank
-		self.zoneCount = 0
-		self.zoneSidelength = zoneSideLength
-		self.zoneList = list()
-		self.zoneImages = list()
-		self.sideLength = sideLength
-		for n in range(sideLength):
-			row = list()
-			for m in range(sideLength):
-				row.append(None)
-			self.zoneList.append(row)
-			self.zoneImages.append(row)
-
-	def addZoneToSquare(self, mapZone: mapZone):
-		# Place the mapZone within the square
-		displayZoneY = self.sideLength - mapZone.displayZoneY - 1
-		displayZoneX = mapZone.displayZoneX
-		self.zoneList[displayZoneY][displayZoneX] = mapZone
-		self.zoneCount += 1
-
-	def drawSquare(self):
-		# Create the stitched image of the square from the array of zones
-		for row in range(len(self.zoneList)):
-			for col in range(len(self.zoneList[0])):
-				cell = self.zoneList[row][col]
-				if isinstance(cell, mapZone):
-					# Replace the cell data with the image
-					self.zoneImages[row][col] = self.zoneList[row][col].fetchZone()
-				else:
-					self.zoneImages[row][col] = pv.Image.black(self.zoneSidelength, self.zoneSidelength, bands=3).copy(interpretation="srgb")
-		
-		# Flatten the list for joining
-		squareList = [cell for row in self.zoneImages for cell in row]
-		return pv.Image.arrayjoin(squareList, across=self.sideLength)
-	
-	def checkIfZoneEmpty(self, x, y):
-		# Checks whether the zone cell is empty (==None)
-		targetX = x
-		targetY = self.sideLength - y - 1
-		return bool(not self.zoneList[targetY][targetX])
-
-	def __repr__(self) -> str:
-		return f"mapSquareOfZones(len:{self.zoneCount})"
-	
-	def __reprdebug__(self) -> str:
-		return pprint.pprint(self.zoneList)
-
-@dataclass(order=True)
-class squareDefinition:
-	groupId: int
-	sourceSquareX: int = field(compare=False)
-	sourceSquareZ: int = field(compare=False)
-	displaySquareX: int = field(compare=False)
-	displaySquareZ: int = field(compare=False)
-	minLevel: int = field(compare=False)
-	levels: int = field(compare=False)
-	fileId: int = field(compare=False)
-	# Post init vals
-	sourceSquareY: int = field(init=False, compare=False)
-	displaySquareY: int = field(init=False, compare=False)
-	lowerPlane: int = field(init=False, compare=False)
-	upperPlane: int = field(init=False, compare=False)
-
-	def __post_init__(self):
-		# Convert from Z to Y
-		self.sourceSquareY = self.sourceSquareZ
-		self.displaySquareY = self.displaySquareZ
-		# Calculate lower and upper planes for ease of reference
-		self.lowerPlane = self.minLevel
-		self.upperPlane = self.minLevel+self.levels-1
-
-	def getSquareData(self):
-		sourceData = (self.sourceSquareY, self.sourceSquareX)
-		displayData = (self.displaySquareY, self.displaySquareY)
-		levelData = (self.lowerPlane, self.upperPlane)
-		return (sourceData, displayData, levelData)
-
-	def __repr__(self) -> str:
-		return f"squareDef({self.sourceSquareX, self.sourceSquareY})->({self.displaySquareX, self.displaySquareY})"
-
-@dataclass(order=True)
-class zoneDefinition:
-	groupId: int
-	sourceSquareX: int = field(compare=False)
-	sourceSquareZ: int = field(compare=False)
-	sourceZoneX: int = field(compare=False)
-	sourceZoneZ: int = field(compare=False)
-	displaySquareX: int = field(compare=False)
-	displaySquareZ: int = field(compare=False)
-	displayZoneX: int = field(compare=False)
-	displayZoneZ: int = field(compare=False)
-	minLevel: int = field(compare=False)
-	levels: int = field(compare=False)
-	fileId: int = field(compare=False)
-	# Post init vals
-	sourceSquareY: int = field(init=False, compare=False)
-	sourceZoneY: int = field(init=False, compare=False)
-	displaySquareY: int = field(init=False, compare=False)
-	displayZoneY: int = field(init=False, compare=False)
-	lowerPlane: int = field(init=False, compare=False)
-	upperPlane: int = field(init=False, compare=False)
-
-	def __post_init__(self):
-		# Convert from Z to Y
-		self.sourceSquareY = self.sourceSquareZ
-		self.sourceZoneY = self.sourceZoneZ
-		self.displaySquareY = self.displaySquareZ
-		self.displayZoneY = self.displayZoneZ
-		# Calculate lower and upper planes for ease of reference
-		self.lowerPlane = self.minLevel
-		self.upperPlane = self.minLevel+self.levels-1
-
-	def getZoneData(self):
-		sourceData = (self.sourceSquareY, self.sourceSquareX, self.sourceZoneY, self.sourceZoneX)
-		displayData = (self.displaySquareY, self.displaySquareX, self.displayZoneY, self.displayZoneX)
-		levelData = (self.lowerPlane, self.upperPlane)
-		return (sourceData, displayData, levelData)
-
-	def __repr__(self) -> str:
-		return f"squareDef({self.sourceSquareX, self.sourceSquareY})[{self.sourceZoneX,self.sourceZoneY}]->({self.displaySquareX, self.displaySquareY})[{self.displayZoneX,self.displayZoneY}]"
-
-class planeContainer:
-	def __init__(self) -> None:
-		self.planeDefinitions = dict()
-		self.planeSquareImages = dict()
-		self.planeImages = dict()
-
-	def defineBlankSquare(self, blankSquare):
-		self.blankSquare = blankSquare
-
-	def setPlaneDimensions(self, lowerX, upperX, lowerY, upperY):
-		self.drawSpaceWidth = upperX - lowerX + 1
-		self.drawSpaceHeight = upperY - lowerY + 1
-		self.lowerX = lowerX
-		self.lowerY = lowerY
-		self.upperX = upperX
-		self.upperY = upperY
-		self.imageWidth = self.upperX - self.lowerX + 1 
-		self.imageHeight = self.upperY - self.lowerY + 1
-
-	def addPlane(self):
-		nextPlaneID = len(self.planeDefinitions)
-		# Preallocate as empty
-		mat = list()
-		for row in range(self.lowerY, self.upperY+1):
-			rowlist = list()
-			for cell in range(self.lowerX, self.upperX+1):
-				rowlist.append(None)
-			mat.append(rowlist)
-		self.planeDefinitions[nextPlaneID] = mat
-		self.planeSquareImages[nextPlaneID] = mat
-		self.planeImages[nextPlaneID] = mat
-
-	def getPlaneCount(self):
-		return len(self.planeDefinitions)
-
-	def _setPlaneCell(self, planeID, x, y, obj):
-		# Private, expects converted coordinates
-		self.planeDefinitions[planeID][y][x] = obj
-
-	def setPlaneCell(self, planeID, x, y, obj):
-		# Insert object into plane at y,x cell
-		targetX, targetY = self.convertCoordinates(x, y)
-		self.planeDefinitions[planeID][targetY][targetX] = obj
-
-	def _checkPlaneCell(self, planeID, x, y):
-		# Private, expects converted coordinates
-		print(f"{x, y} occupied: {type(self.planeDefinitions[planeID][y][x])}")
-		return type(self.planeDefinitions[planeID][y][x])
-	
-	def checkPlaneCell(self, planeID, x, y):
-		# Check the contents of a cell in a plane
-		targetX, targetY = self.convertCoordinates(x, y)
-		return type(self.planeDefinitions[planeID][targetY][targetX])
-	
-	def _getPlaneCell(self, planeID, x, y):
-		# Private, expects converted coordinates
-		return self.planeDefinitions[planeID][y][x]
-	
-	def getPlaneCell(self, planeID, x, y):
-		# Get the contents of a cell in a plane
-		targetX, targetY = self.convertCoordinates(x, y)
-		return self.planeDefinitions[planeID][targetY][targetX]
-
-	def convertCoordinates(self, x, y):
-		# Accounts for the padding
-		targetX = x - self.lowerX
-		targetY = self.upperY - y - 1 + 1 # -1 for height conversion, +1 to move away from padding
-		# Add one to each to account for padding
-		return (targetX, targetY)
-
-	def setPlaneCellWhereAvailable(self, x, y, obj):
-		# Convert the coordinates to top left origin
-		targetX, targetY = self.convertCoordinates(x, y)
-		# Traverse the plane list, seeking the first open cell counting upward
-		# Accounts for padding, spins up a new layer if need be
-		planeID = self._getCellAvailablePlane(targetX, targetY)
-		# If the necessary planeID isn't already in the dict
-		for n in range(planeID - (len(self.planeDefinitions)-1)):
-			# Spin up a new plane to hold the object
-			self.addPlane()
-		self._setPlaneCell(planeID, targetX, targetY, obj)
-
-	def _getCellAvailablePlane(self, x, y):
-		# Private, expects converted coordinates
-		# Iterate upward through existing planes to find an empty cell
-		for planeID in range(len(self.planeDefinitions)):
-			if self._getPlaneCell(planeID, x, y) is None:
-				return planeID
-		else:
-			# If there were no empty cells, then a new plane is needed
-			return planeID+1
-
-	def getCellAvailablePlane(self, x, y):
-		# Returns the first plane available for a particular coordinate
-		targetX, targetY = self.convertCoordinates(x, y)
-		# Traverse the plane list, seeking the first open cell counting upward
-		planeID = 0
-		while self._getPlaneCell(planeID, targetX, targetY) is not None:
-			# Cell is occupied, check the next
-			planeID += 1
-		return planeID
-	
-	def renderPlaneSquares(self, planeID):
-		# Renders the square images, but not the whole plane image
-		# Iterate defs cells, transforming contents to images and storing in images dict
-		for y in range(self.imageHeight):
-			for x in range(self.imageWidth):
-				content = self.planeDefinitions[planeID][y][x]
-				if isinstance(content, mapSquare):
-					cellImage = content.fetchSquare()
-				elif isinstance(content, mapSquareOfZones):
-					cellImage = content.drawSquare()
-				elif content is None:
-					# Default to empty image
-					cellImage = self.blankSquare
-				elif isinstance(content, pv.Image):
-					# Already rendered
-					cellImage = content
-				# May want to catch an error here
-				self.planeSquareImages[planeID][y][x] = cellImage
-
-	def renderPlane(self, planeID):
-		# Renders the whole plane image 
-		self.renderPlaneSquares(planeID)
-		targetPlane = self.planeSquareImages[planeID]
-
-		# Return a flattened list of the content of the cells
-		return [cell for row in targetPlane for cell in row]
-
-def buildMapID(mapID, squareDefs, zoneDefs, coordData, tilePath, baseOutPath, configData):
-	# Assemble an image using the square and zone defs
-
-	# First, find the square dimensions of the output
-	defUpperSquareX = defUpperSquareY = -999
-	defLowerSquareX = defLowerSquareY = 999
-	defUpperPlane = -999
-	defLowerPlane = 999
-
-	# Parse square definitions
-	squareDefs = [squareDefinition(**squareDef) for squareDef in squareDefs]
-	heapq.heapify(squareDefs) # ordered by groupID
-
-	# Parse zone definitions
-	zoneDefs = [zoneDefinition(**zoneDef) for zoneDef in zoneDefs]
-	heapq.heapify(zoneDefs) # ordered by groupID
-
-	# Range the image
-	for squareDef in squareDefs:
-		defUpperSquareX = max(defUpperSquareX, squareDef.displaySquareX)
-		defLowerSquareX = min(defLowerSquareX, squareDef.displaySquareX)
-		defUpperSquareY = max(defUpperSquareY, squareDef.displaySquareY)
-		defLowerSquareY = min(defLowerSquareY, squareDef.displaySquareY)
-		defUpperPlane = max(defUpperPlane, squareDef.upperPlane)
-		defLowerPlane = min(defLowerPlane, squareDef.lowerPlane)
-
-	# Range the image
-	for zoneDef in zoneDefs:
-		defUpperSquareX = max(defUpperSquareX, zoneDef.displaySquareX)
-		defLowerSquareX = min(defLowerSquareX, zoneDef.displaySquareX)
-		defUpperSquareY = max(defUpperSquareY, zoneDef.displaySquareY)
-		defLowerSquareY = min(defLowerSquareY, zoneDef.displaySquareY)
-		defUpperPlane = max(defUpperPlane, zoneDef.upperPlane)
-		defLowerPlane = min(defLowerPlane, zoneDef.lowerPlane)
-
-	# For now the game only has four planes: 0,1,2,3
-	defUpperPlane = min(defUpperPlane, 3)
-	defLowerPlane = max(defLowerPlane, 0)
-
-	# Preallocate the data structure containing the squares to be rendered
-	# Start with just the base plane, spins up new layers as needed
-	planeImages = planeContainer()
-	planeImages.setPlaneDimensions(defLowerSquareX, defUpperSquareX, defLowerSquareY, defUpperSquareY)
-	planeImages.addPlane()
-
-	# Empty squares will be rendered with a pure black square
-	blankSquare = pv.Image.black(coordData["squarePixelLength"], coordData["squarePixelLength"], bands=3).copy(interpretation="srgb")
-	planeImages.defineBlankSquare(blankSquare)
-
-	# Iterate over the definitions, replacing cells with mapSquare/mapZone objects
-	for squareDef in squareDefs:
-		# Get the data from the definition
-		sourceData, displayData, levelData = squareDef.getSquareData()
-
-		# Some defs capture and draw on multiple planes
-		for level in range(levelData[0], levelData[1]+1):
-			# Create the object to go in the cell
-			obj = mapSquare(*displayData, *sourceData, level, tilePath, coordData)
-			# Place it where possible
-			planeImages.setPlaneCellWhereAvailable(squareDef.displaySquareX, squareDef.displaySquareY, obj)
-
-	for zoneDef in zoneDefs:
-		# Get the data from the definition
-		sourceData, displayData, levelData = zoneDef.getZoneData()
-		# Zones in squares belong to a special object which manages the set of zones
-		# If this object doesn't already exist it needs to be created
-		for level in range(levelData[0], levelData[1]+1):
-			# Iterate upward through the planes, checking the content of cells at each height
-			for plane in range(planeImages.getPlaneCount()):
-				content = planeImages.getPlaneCell(plane, zoneDef.displaySquareX, zoneDef.displaySquareY)
-				if content is None:
-					# If the cell is empty, claim it
-					msoz = mapSquareOfZones(coordData["squareZoneLength"], coordData["zonePixelLength"])
-					msoz.addZoneToSquare(mapZone(*displayData, *sourceData, level, tilePath, coordData))
-					planeImages.setPlaneCell(plane, zoneDef.displaySquareX, zoneDef.displaySquareY, msoz)
-					break
-				elif isinstance(content, mapSquareOfZones):
-					# If the cell contains the right object, check if its zone is available
-					if content.checkIfZoneEmpty(zoneDef.displayZoneX, zoneDef.displayZoneY):
-						# If it is empty, claim it
-						content.addZoneToSquare(mapZone(*displayData, *sourceData, level, tilePath, coordData))
-						break
-				else:
-					# If the cell contains something else, ignore it
-					pass
-			else:
-				# If the entire list of planes is checked and there are no available spots for the zone
-				# Add a plane
-				planeImages.addPlane()
-				# Create a new map square, add the zone to it, then add the square to the new plane
-				planeID = planeImages.getPlaneCount() - 1
-				msoz = mapSquareOfZones(coordData["squareZoneLength"], coordData["zonePixelLength"])
-				msoz.addZoneToSquare(mapZone(*displayData, *sourceData, level, tilePath, coordData))
-				planeImages.setPlaneCell(planeID, zoneDef.displaySquareX, zoneDef.displaySquareY, msoz)
-		
-	# Once all definitions have been organized, render the results and save
-	# outPath = os.path.join(baseOutPath, "base")
-	# if not os.path.exists(outPath):
-	# 	os.makedirs(outPath)
-	# for plane in range(planeImages.getPlaneCount()):
-	# 	imageList = planeImages.renderPlane(plane)
-	# 	output = pv.Image.arrayjoin(imageList, across=planeImages.imageWidth)
-	# 	if output != pv.Image.black(planeImages.imageWidth, planeImages.imageHeight):
-	# 		output.write_to_file(os.path.join(outPath, f"{plane}.png"))
-
-	# Once all definitions have been organized, render the results with composites
-	# outPath = os.path.join(baseOutPath, "composite")
-	# if not os.path.exists(outPath):
-	# 	os.makedirs(outPath)
-	# Always render and save plane 0
-	squareImageList = planeImages.renderPlane(0)
-	baseImage = pv.Image.arrayjoin(squareImageList, across=planeImages.imageWidth)
-	# Handling of multiband images appears to be bugged, this fixes it
-	baseImage = baseImage
-	# baseImage.write_to_file(os.path.join(outPath, f"0.png")) # Save immediately
-	
-	# Load mask thresholding data
-	transparencyColor = configData["COMPOSITE_OPTS"]["transparencyColor"]
-	transparencyTolerance = configData["COMPOSITE_OPTS"]["transparencyTolerance"]
-
-	for plane in range(0, planeImages.getPlaneCount()):
-		# Render the current plane
-		squareImageList = planeImages.renderPlane(plane)
-		planeImage = pv.Image.arrayjoin(squareImageList, across=planeImages.imageWidth)
-
-		# If the plane is above 0, it will need to be overlaid atop some composite image
-		if plane > 0:
-			# Create the new underlay
-			mask = (abs(planeImage - transparencyColor) > transparencyTolerance).bandor()
-			baseImage = mask.ifthenelse(planeImage, baseImage)
-
-			# Style the underlay
-			styledBaseImage = styleLayer(baseImage, configData["COMPOSITE_OPTS"])
-
-			# Composite using mask
-			compositeImage = mask.ifthenelse(planeImage, styledBaseImage)
-		else:
-			compositeImage = planeImage
-
-		# Save the composite
-		# outPath = os.path.join(baseOutPath, "composite")
-		# if not os.path.exists(outPath):
-		# 	os.makedirs(outPath)
-		# compositeImage.write_to_file(os.path.join(outPath, f"{plane}.png"))
-
-		# Rescale
-		minZoom = configData["ZOOM_OPTS"]["zoomLevels"]["min"]
-		maxZoom = configData["ZOOM_OPTS"]["zoomLevels"]["max"]
-		baselineZoom = configData["ZOOM_OPTS"]["baselineZoomLevel"]
-		kernels = configData["ZOOM_OPTS"]["kernels"] #dict
-		squareLength_px = coordData["squarePixelLength"]
-		for zoomLevel in range(minZoom, maxZoom+1):
-			# Calculate scale factor
-			scaleFactor = 2.0**zoomLevel / 2.0**baselineZoom
-
-			# Select the kernel (json keys must be strings)
-			kernelStyle = kernels[str(zoomLevel)]
-
-			# Scale and write
-			zoomedImage = compositeImage.resize(scaleFactor, kernel=kernelStyle)
-			# outPath = os.path.join(baseOutPath, f"scaled/{zoomLevel}")
-			# if not os.path.exists(outPath):
-			# 	os.makedirs(outPath)
-			# zoomedImage.write_to_file(os.path.join(outPath, f"plane_{plane}.png"))
-
-			# At each zoom level lower than baseline we need to pad the image out to align the slicer
-			# We need to go to the nearest lower left point, via integer division
-			if zoomLevel < 2:
-				# Calculate nearest corner's x position
-				zoomCornerX = (planeImages.lowerX // (scaleFactor ** -1)) * (scaleFactor ** -1)
-				cornerPadX_squares = 0
-				if zoomCornerX != planeImages.lowerX:
-					# The missing number of squares can then be calculated
-					cornerPadX_squares = planeImages.lowerX - zoomCornerX
-					# Convert to pixels
-					cornerPadX_px = cornerPadX_squares * squareLength_px * scaleFactor
-					# Attach padding to image
-					leftPadding = pv.Image.black(cornerPadX_px, zoomedImage.height).copy(interpretation="srgb")
-					zoomedImage = leftPadding.join(zoomedImage, "horizontal")
-				
-				# Calculate nearest corner's y position
-				zoomCornerY = (planeImages.lowerY // (scaleFactor ** -1)) * (scaleFactor ** -1)
-				cornerPadY_squares = 0
-				if zoomCornerY != planeImages.lowerY:
-					# The missing number of squares can then be calculated
-					cornerPadY_squares = planeImages.lowerY - zoomCornerY
-					# Convert to pixels
-					cornerPadY_px = cornerPadY_squares * squareLength_px * scaleFactor
-					# Attach padding to image
-					bottomPadding = pv.Image.black(zoomedImage.width, cornerPadY_px)
-					zoomedImage = zoomedImage.join(bottomPadding, "vertical")
-				
-				# Now the top and right edges need to be aligned to the slicer
-				# There may be some number of tiles missing that would complete the zoom box
-				# The bit that exists already is "extra" and needs to be rounded out
-				extraX_px = (zoomedImage.width % squareLength_px) / squareLength_px
-				if extraX_px != 0:
-					# Calculate the missing pixels via complement
-					missing_px = (1 - extraX_px) * squareLength_px
-					rightPadding = pv.Image.black(missing_px, zoomedImage.height)
-					zoomedImage = zoomedImage.join(rightPadding, "horizontal")
-				
-				extraY_px = (zoomedImage.height % squareLength_px) / squareLength_px
-				if extraY_px != 0:
-					# Calculate the missing pixels via complement
-					missing_px = (1 - extraY_px) * squareLength_px
-					topPadding = pv.Image.black(zoomedImage.width, missing_px)
-					zoomedImage = topPadding.join(zoomedImage, "vertical")
-
-				# Write the output
-				# zoomedImage.write_to_file(os.path.join(outPath, f"plane_{plane}_aligned.png"))
-
-			# Now the image is ready for slicing
-			dzPath = f"osrs-wiki-maps/out/mapgen/versions/2024-05-29_a/fullplanes/mapID/{mapID}/tiled"
-			dzPath = os.path.join("./temp")
-			zoomedImage.dzsave(os.path.join(dzPath, f"plane_{plane}/{zoomLevel}"),
-								tile_size=squareLength_px,
-								suffix='.png[Q=100]',
-								depth='one',
-								overlap=0,
-								layout='google',
-								region_shrink='nearest',
-								background=0,
-								skip_blanks=0)
-			
-			# The directory needs to be restructured to comport with Jagex/Leaflet coordinates
-			# Generate an iterable of all the files in the directory for this pyramid layer
-			planeDirectory = os.path.join("./temp", f"plane_{plane}/{zoomLevel}/0")
-			pyramidSearchPath = os.path.join(planeDirectory, "**/*.png")
-			pyramidFiles = glob.iglob(pyramidSearchPath, recursive=True)
-
-			# Iterate, using multiple cores if enabled
-			for imagePath in pyramidFiles:
-				# Google structure inserts images used to compare and eliminate empty tiles
-				# Ignore them
-				if os.path.split(imagePath)[-1] == "blank.png":
-					continue
-				imageSquareDimensions = {
-					"lowerX": defLowerSquareX, 
-					"lowerY": defLowerSquareY, 
-					"upperX": defUpperSquareX, 
-					"upperY": defUpperSquareY
-				}
-				renameFile(imagePath, imageSquareDimensions, baselineZoom, coordData, baseOutPath)
-			
-			# After the files have been moved, the old directory structure can be deleted
-			removeSubdirectories("./temp")
-			os.rmdir("./temp")
-
-
-def removeSubdirectories(topLevelDir):
-	# Use DFS to find tree leaves and remove them
-	dirsToRemove = [os.path.normpath(path) for path in glob.glob(os.path.join(topLevelDir, "**/"))]
-	filesToRemove = [os.path.normpath(path) for path in glob.glob(os.path.join(topLevelDir, "*.*"))]
-	# Traverse deeper into the tree
-	for dir in dirsToRemove:
-		# Empty subdirs and delete
-		removeSubdirectories(dir)
-		os.rmdir(dir)
-	# Remove files
-	for file in filesToRemove:
-		os.remove(file)
-
-
-def renameFile(filePath, imageSquareDimensions, baselineZoom, coordData, outPath):
-	# Parse the filename to get the tile's location data
-	splitPath = os.path.normpath(filePath).split(os.sep)[-5:]
-	planeNum = int(splitPath[0].split("_")[-1])
-	zoom = int(splitPath[1])
-	y = int(splitPath[-2])
-	x = int(splitPath[-1].split(".")[0])
-
-	# Scale factor is relevant for all transformations here
-	scaleFactor = 2.0**zoom / 2.0**baselineZoom
-
-	# Calculate the height of the slice
-	# Need to add one to get the coordinate of the top of the highest square
-	# Then use ceiling on the scaling calculation to get the top left corner
-	upperY = math.ceil((imageSquareDimensions["upperY"] + 1) / (scaleFactor ** -1))
-	lowerY = imageSquareDimensions["lowerY"] // (scaleFactor ** -1)
-	height = (upperY - lowerY)
-
-	# Transform the image location within slicer frame to bottom left coordinates
-	x_sliceSquare = x
-	y_sliceSquare = height - y - 1
-
-	# Calculate the coordinate of the bottom left of the slicer frame
-	slicerXBL_square = imageSquareDimensions["lowerX"] // (scaleFactor ** -1)
-	slicerYBL_square = lowerY
-
-	# Add the distance from Jagex reference to distance from slicer bottom left
-	relX = slicerXBL_square + x_sliceSquare
-	relY = slicerYBL_square + y_sliceSquare
-
-	newFileName = f"{planeNum}_{int(relX)}_{int(relY)}.png"
-	outPath = os.path.join(outPath, f"{zoom}")
-	if not os.path.exists(outPath):
-		os.makedirs(outPath)
-	
-	# If there is an old file in the way it should be replaced
-	newPath = os.path.join(outPath, newFileName)
-	if os.path.exists(newPath):
-		os.remove(newPath)
-	os.rename(filePath, newPath)
-
-def styleLayer(image, stylerOpts):
-	# Load the style options
-	brightnessFrac = stylerOpts["brightnessFraction"]
-	contrastFrac = stylerOpts["contrastFraction"]
-	grayscaleFrac = stylerOpts["grayscaleFraction"]
-	blurRadius = stylerOpts["blurRadius"]
-	
-	### Brightness and contrast
-	# This is done via a linear equation out = contrast * in + brightness
-	brightnessValue = ((brightnessFrac * 255) - 255) / 2
-	image = contrastFrac * (image - 127) + (127 + brightnessValue)
-
-	### Grayscale
-	if 0 < grayscaleFrac <= 1:
+# Generic image processing
+
+def brightnessAndContrast(image):
+	brightnessFrac = CONFIG.composite.brightnessFraction
+	contrastFrac = CONFIG.composite.contrastFraction
+	if 0 <= brightnessFrac <= 1.0 and 0 <= contrastFrac <= 1.0:
+		# This is done via a linear equation out = contrast * in + brightness
+		brightnessValue = ((brightnessFrac * 255) - 255) / 2
+		image = contrastFrac * (image - 127) + (127 + brightnessValue)
+		return image
+	elif brightnessFrac > 1 or brightnessFrac < 0:
+		raise ValueError("Brightness adjustment fraction not between 0 and 1")
+	elif contrastFrac > 1 or contrastFrac < 0:
+		raise ValueError("Contrast adjustment fraction not between 0 and 1")
+
+def grayscale(image):
+	grayscaleFrac = CONFIG.composite.grayscaleFraction
+	if 0 <= grayscaleFrac <= 1:
 		# Convert to .hsv, adjust the saturation band, and convert back to srgb
-		image = (image.colourspace("hsv") * [1, (1-grayscaleFrac), 1]).colourspace("srgb")
+		image = image.colourspace("hsv")
+		image = image * [1, (1-grayscaleFrac), 1]
+		image = image.colourspace("srgb")
+		return image
+	else:
+		raise ValueError("Grayscale adjustment fraction not between 0 and 1")
 
-	### Color Palette
-	# Seems unpopular, but would be sepia, etc
-
-	### Dropshadow
-	# Seems unpopular, looks nice in some areas of the map
-
-	### Blur
+def blur(image):
 	# Preview the radius of this blur operation using:
 	# print(pv.Image.gaussmat(sigma, min_ampl, precision="float", separable=True).rot90().numpy())
 	# pyvips implementation skips the first term of the Gaussian: https://www.libvips.org/API/8.9/libvips-create.html#vips-gaussmat
+	blurRadius = CONFIG.composite.blurRadius
 	if blurRadius > 0:
+		# This approach calculates the amplitude cutoff for passed radius
 		sigma = 1
-		n = blurRadius + 1 
-		nthGaussTerm = math.e ** ((-n**2)/(2 * (sigma**2)))
-		image = image.gaussblur(sigma, min_ampl=nthGaussTerm, precision="float")
+		n = blurRadius + 1
+		nthGaussTerm = math.e ** (-(n**2)/(2 * (sigma**2)))
+		return image.gaussblur(sigma, min_ampl=nthGaussTerm, precision="float")
 
-	return image
 
-def loadDefinitions(defsBasePath):
-	# Loads the map and square definitions, returning dicts with ID numbers as keys
-	# Load mapID square definitions
-	squareDefsPath = os.path.join(defsBasePath, "squares")
-	squareDefFiles = [os.path.normpath(path) for path in glob.glob(os.path.join(squareDefsPath, "*.json"))]
-	squareDefinitions = dict()
-	for squareDef in squareDefFiles:
-		_, defID = os.path.splitext(os.path.basename(squareDef))[0].split("_") # Expecting 'mapSquareDefinitions_X.json'
-		defs = list()
-		with open(squareDef) as squareDefFile:
-			squareDefs = json.load(squareDefFile)
-			for squareDef in squareDefs:
-				defs.append(squareDef)
-		squareDefinitions[int(defID)] = defs
+class MapDefsManager():
+	"""
+	Stores the square and zone definitions
+	Also maps source squares and zones to display squares and zones
+	"""
+	# Holds a map of source->display [plane][square][zone]
+	def __init__(self, squareDefs: list[SquareDefinition], 
+			  	 zoneDefs: list[SquareDefinition]):
+		self.squareDefs = squareDefs
+		self.zoneDefs = zoneDefs
 
-	# Load mapID zone defintions
-	zoneDefsPath = os.path.join(defsBasePath, "zones")
-	zoneDefFiles = [os.path.normpath(path) for path in glob.glob(os.path.join(zoneDefsPath, "*.json"))]
-	zoneDefinitions = dict()
-	for zoneDef in zoneDefFiles:
-		_, defID = os.path.splitext(os.path.basename(zoneDef))[0].split("_") # Expecting 'mapZoneDefinitions_X.json'
-		defs = list()
-		with open(zoneDef) as zoneDefFile:
-			zoneDefs = json.load(zoneDefFile)
-			for zoneDef in zoneDefs:
-				defs.append(zoneDef)
-		zoneDefinitions[int(defID)] = defs
+		# Default map dimensions
+		self.lowerSquareX = math.inf
+		self.upperSquareX = -math.inf
+		self.lowerSquareZ = math.inf
+		self.upperSquareZ = -math.inf
+		self.lowerPlane = math.inf
+		self.upperPlane = -math.inf
 
-	# Package and return
-	mapDefinitions = {
-		"squares": squareDefinitions,
-		"zones": zoneDefinitions
-	}
-	# Add the number of mapIDs
-	mapDefinitions["count"] = max(len(mapDefinitions["squares"]), len(mapDefinitions["zones"]))
-	return mapDefinitions
+		# Post-init tasks
+		self._rangeImage()
+		self._sortDefinitions()
+		self._buildReferences(self.squareDefs, self.zoneDefs)
+	
+	def _rangeImage(self) -> None:
+		# Calculate the dimensions of the output image in squares
+		# Check square definitions
+		for sd in self.squareDefs:
+			self.lowerSquareX = min(self.lowerSquareX, sd.displaySquareX)
+			self.upperSquareX = max(self.upperSquareX, sd.displaySquareX)
+			self.lowerSquareZ = min(self.lowerSquareZ, sd.displaySquareZ)
+			self.upperSquareZ = max(self.upperSquareZ, sd.displaySquareZ)
+			self.lowerPlane = min(self.lowerPlane, sd.lowerPlane)
+			self.upperPlane = max(self.upperPlane, sd.upperPlane)
+		# Check zone definitions
+		for zd in self.zoneDefs:
+			self.lowerSquareX = min(self.lowerSquareX, zd.displaySquareX)
+			self.upperSquareX = max(self.upperSquareX, zd.displaySquareX)
+			self.lowerSquareZ = min(self.lowerSquareZ, zd.displaySquareZ)
+			self.upperSquareZ = max(self.upperSquareZ, zd.displaySquareZ)
+			self.lowerPlane = min(self.lowerPlane, zd.lowerPlane)
+			self.upperPlane = max(self.upperPlane, zd.upperPlane)
+	
+	def _sortDefinitions(self) -> None:
+		self.squareDefs.sort()
+		self.zoneDefs.sort()
+
+	def _buildReferences(self, squareDefs: list[SquareDefinition],
+						 zoneDefs: list[ZoneDefinition]) -> None:
+		# Constructs a dictionary mapping tuple source coords to display coords
+		self.sourceToDisplay = dict()
+		for plane in range(self.lowerPlane, self.upperPlane+1):
+			self.sourceToDisplay[plane] = dict()
+
+		# Square definitions don't change zone locations, preallocate
+		unchangedSquare = dict(displaySquare={}, sourceZone={})
+		for i in range(0, GCS.squareZoneLength):
+			for j in range(0, GCS.squareZoneLength):
+				unchangedSquare['sourceZone'][(i, j)] = (i, j)
+
+		# Load square definition mappings
+		for sd in squareDefs:
+			for plane in range(sd.lowerPlane, sd.upperPlane+1):
+				source = sd.getSourceSquare()
+				display = sd.getDisplaySquare()
+				# Zones are unchanged, but need to be mapped
+				self.sourceToDisplay[plane][source] = deepcopy(unchangedSquare)
+				parentSquare = self.sourceToDisplay[plane][source]
+				parentSquare['displaySquare'] = display
+
+		# Load zone definition mappings
+		for zd in zoneDefs:
+			for plane in range(zd.lowerPlane, zd.upperPlane+1):
+				sourceSquare = zd.getSourceSquare()
+				sourceZone = zd.getSourceZone()
+				displaySquare = zd.getDisplaySquare()
+				displayZone = zd.getDisplayZone()
+				planeDict = self.sourceToDisplay[plane]
+				if sourceSquare not in self.sourceToDisplay[plane]:
+					planeDict[sourceSquare] = dict(displaySquare={}, sourceZone={})
+				parentSquare = self.sourceToDisplay[plane][sourceSquare]
+				parentSquare['displaySquare'] = displaySquare
+				parentSquare['sourceZone'][sourceZone] = displayZone
+
+	def getDefsBBox(self):
+		out = {
+			"lowerX": self.lowerSquareX,
+			"upperX": self.upperSquareX,
+			"lowerZ": self.lowerSquareZ,
+			"upperZ": self.upperSquareZ,
+			"lowerPlane": self.lowerPlane,
+			"upperPlane": self.upperPlane
+		}
+		return out
+
+
+class MapBuilder():
+	def __init__(self, defsStore: MapDefsManager, ID) -> None:
+		self.mapID = ID
+
+		# Save a reference to the store
+		self.defsStore = defsStore
+
+		# Define plane shape
+		bbox = defsStore.getDefsBBox()
+
+		# Clamp plane range to 0 through 3
+		# This is necessary because The Abyss (ID 40) has levels:6 (???)
+		# Also, some mapIDs only source tiles from planes above 0
+		# The current output strategy pushes things down to the bottommost plane
+		# Therefore 0 should always be included
+		self.lowerPlane = 0
+		self.upperPlane = min(3, bbox["upperPlane"])
+
+		# Track the highest display plane needed
+		self.upperDisplayPlane = -math.inf
+		self.lowerDisplayPlane = math.inf
+
+		# Create the registry of planes
+		self.planes = dict()
+		for planeNum in range(self.lowerPlane, self.upperPlane+1):
+			# Planes are a mosaic of squares
+			self.planes[planeNum] = MapPlane(bbox["lowerX"],
+											 bbox["upperX"],
+											 bbox["lowerZ"],
+											 bbox["upperZ"],
+											 planeNum)
+			
+		# Iterate the definitions, loading them into the plane
+		self._loadDefinitions(defsStore.squareDefs, defsStore.zoneDefs)
+
+
+	def _loadDefinitions(self, squareDefs: list[SquareDefinition],
+					 	zoneDefs: list[ZoneDefinition]):
+		for sd in squareDefs:
+			# Squares get defined for each source plane in the level range
+			lowerPlane, upperPlane = sd.getPlaneRange()
+			for planeNum in range(lowerPlane, upperPlane+1):
+				self._loadSquareDefinition(sd, planeNum)
+
+		for zd in zoneDefs:
+			# Zones get defined for each source plane in the level range
+			lowerPlane, upperPlane = zd.getPlaneRange()
+			for planeNum in range(lowerPlane, upperPlane+1):
+				self._loadZoneDefinition(zd, planeNum)
+
+	def _loadSquareDefinition(self, sqDef: SquareDefinition, sourcePlane):
+		newSquare = MapSquare(sqDef, sourcePlane)
+		for planeNum in range(self.lowerPlane, self.upperPlane+1):
+			x, y = newSquare.definition.getDisplaySquare()
+			targetPlane = self.planes[planeNum] # type: MapPlane
+			if targetPlane.checkIfCellEmpty(x, y):
+				targetPlane.insertToCell(x, y, newSquare)
+				self.updateDisplayPlanes(planeNum)
+				break
+		else:
+			# The next free plane is outside the clamped range
+			# This is a fallthrough case requiring code adjustments, probably
+			# Currently triggered by MapID 40 (The Abyss) which has 6 levels
+			# raise IndexError("Cell is occupied on all allowed planes")
+			pass
+		
+	def _loadZoneDefinition(self, zDef: ZoneDefinition, sourcePlane):
+		newZone = MapZone(zDef, sourcePlane)
+		newZoneDef = newZone.definition # type: ZoneDefinition
+		# Iterate the display planes
+		for planeNum in range(self.lowerPlane, self.upperPlane+1):
+			x, y = newZoneDef.getDisplaySquare()
+			i, j = newZoneDef.getDisplayZone()
+			targetPlane = self.planes[planeNum] # type: MapPlane
+			# If the cell is empty, a zone container needs to be created
+			if targetPlane.checkIfCellEmpty(x, y):
+				msoz = MapSquareOfZones(planeNum)
+				targetPlane.insertToCell(x, y, msoz)
+			# If not, then the contents must be MapSquareOfZones
+			target = targetPlane.getCellContents(x, y) # type: MapSquareOfZones
+			if target.checkIfCellEmpty(i, j):
+				target.insertToCell(i, j, newZone)
+				self.updateDisplayPlanes(planeNum)
+				break
+			# Its possible an error on Jagex's side could cause both zones and
+			# squares to appear in the same 'cell'. This would cause a problem
+			# that needs to be handled, but hasn't been seen yet.
+		else:
+			# The next free plane is outside the spec'd or clamped range
+			# This is a fallthrough case requiring code adjustments, probably
+			# Currently triggered by MapID 40 (The Abyss) which has 6 levels
+			# raise IndexError("Cell is occupied on all allowed planes")
+			pass
+
+	def updateDisplayPlanes(self, planeNum):
+		self.upperDisplayPlane = max(self.upperDisplayPlane, planeNum)
+		self.lowerDisplayPlane = min(self.lowerDisplayPlane, planeNum)
+
+	def renderImages(self, basePath):
+		# For each plane, render all relevant images
+		for planeNum in range(self.lowerDisplayPlane, self.upperDisplayPlane+1):
+			targetPlane = self.planes[planeNum] # type: MapMosaic
+			targetPlane.render()
+
+			# Style the planes and then stack them for aesthetics
+			image = targetPlane.getImage()
+			# The lowest plane is the base image for stacking operations
+			if planeNum == self.lowerPlane:
+				baseImage = image
+				compositeImage = image
+			# For planes above 0, the finalized plane image will be a composite
+			elif planeNum > self.lowerPlane:
+				# Create the stacked underlay
+				mask = targetPlane.imageContainer.getMask()
+				baseImage = mask.ifthenelse(image, baseImage)
+				styledPlane = self.stylePlane(baseImage)
+				compositeImage = mask.ifthenelse(image, styledPlane)
+
+			# Rescale the plane images and slice into map tiles
+			minZoom = CONFIG.zoom.minZoom
+			maxZoom = CONFIG.zoom.maxZoom
+			baselineZoom = CONFIG.zoom.baselineZoomLevel
+			for zoomLevel in range(minZoom, maxZoom+1):
+				# Calculate scale factor for this zoom level
+				scaleFactor = 2.0 ** zoomLevel / 2.0 ** baselineZoom
+				zoomedImage = self.resizeImage(compositeImage, 
+								   			   zoomLevel, scaleFactor)
+
+				# At each zoom level lower than baseline, the image need aligning
+				# Pad the image to the lower left point via integer division
+				if zoomLevel < 2:
+					lowerX = targetPlane.bbox["lowerX"]
+					zoomedImage = self.padLeft(zoomedImage, lowerX, scaleFactor)
+					lowerY = targetPlane.bbox["lowerZ"]
+					zoomedImage = self.padDown(zoomedImage, lowerY, scaleFactor)
+
+					# Grow the image up and right until it aligns with grid
+					zoomedImage = self.padRight(zoomedImage)
+					zoomedImage = self.padUp(zoomedImage)
+			
+				# The image can now be sliced
+				self.tileImage(zoomedImage, planeNum, zoomLevel)
+				
+				# The output directory of the slicer needs restructuring
+				self.restructureDirectory(planeNum, zoomLevel, basePath)
+
+	def resizeImage(self, image, zoomLevel, scaleFactor):
+		# Select the kernel for this zoom level (zooming in uses NN)
+		kernels = CONFIG.zoom.kernels
+		kernelStyle = kernels[zoomLevel]
+		
+		# Scale
+		zoomedImage = image.resize(scaleFactor, kernel=kernelStyle)
+		return zoomedImage
+
+	def tileImage(self, image, planeNum, zoomLevel):
+		dzPath = "./temp"
+		outPath = os.path.join(dzPath, f"plane_{planeNum}/{zoomLevel}")
+		backgroundColor = CONFIG.composite.transparencyColor
+		backgroundTolerance = CONFIG.composite.transparencyTolerance
+		image.dzsave(outPath,
+					 tile_size = GCS.squarePixelLength,
+					 suffix='.png[Q=100]',
+					 depth='one',
+					 overlap=0,
+					 layout='google',
+					 region_shrink='nearest',
+					 background=backgroundColor,
+					 skip_blanks=backgroundTolerance)
+		
+	def restructureDirectory(self, planeNum, zoomLevel, basePath):
+		# It should match Jagex/Leaflet coordinates
+		# Generate an iterable of all the files in the directory
+		dirSpec = f"plane_{planeNum}/{zoomLevel}/0"
+		planeDirectory = os.path.join("./temp", dirSpec)
+		pyramidSearchPath = os.path.join(planeDirectory, "**/*.png")
+		pyramidFiles = glob.iglob(pyramidSearchPath, recursive=True)
+
+		# Iterate
+		for imagePath in pyramidFiles:
+			# Google structure inserts images representing blank tiles
+			# Ignore them
+			if os.path.split(imagePath)[-1] == "blank.png":
+				continue
+			dimensions = self.defsStore.getDefsBBox()
+			self.renameFile(imagePath, zoomLevel, dimensions, basePath)
+
+		# Clean up temporary files
+		self.removeSubdirectories("./temp")
+		os.rmdir("./temp")
+		
+	def padLeft(self, image, lowerX, scaleFactor):
+		inverseScale = scaleFactor ** -1
+		zoomCornerX = (lowerX // inverseScale) * inverseScale
+		if zoomCornerX != lowerX:
+			# The missing number of squares can then be calculated
+			cornerPadX_squares = lowerX - zoomCornerX
+			# Convert to pixels
+			cornerPadX_px = cornerPadX_squares * GCS.squarePixelLength * scaleFactor
+			# Attach padding to image
+			leftPadding = pv.Image.black(cornerPadX_px, image.height).copy(interpretation="srgb")
+			image = leftPadding.join(image, "horizontal")
+		return image
+	
+	def padDown(self, image, lowerY, scaleFactor):
+		inverseScale = scaleFactor ** -1
+		zoomCornerY = (lowerY // inverseScale) * inverseScale
+		if zoomCornerY != lowerY:
+			# The missing number of squares can then be calculated
+			cornerPadY_squares = lowerY - zoomCornerY
+			# Convert to pixels
+			cornerPadY_px = cornerPadY_squares * GCS.squarePixelLength * scaleFactor
+			# Attach padding to image
+			downPadding = pv.Image.black(image.width, cornerPadY_px).copy(interpretation="srgb")
+			image = image.join(downPadding, "vertical")
+		return image
+
+	def padRight(self, image):
+		overhangX_px = image.width % GCS.squarePixelLength
+		if overhangX_px != 0:
+			overhangX_square = overhangX_px / GCS.squarePixelLength
+			missingX_square = (1 - overhangX_square)
+			missingX_px = missingX_square * GCS.squarePixelLength
+			rightPadding = pv.Image.black(missingX_px, image.height)
+			image = image.join(rightPadding, "horizontal")
+		return image
+	
+	def padUp(self, image):
+		overhangZ_px = image.height % GCS.squarePixelLength
+		if overhangZ_px != 0:
+			overhangZ_square = overhangZ_px / GCS.squarePixelLength
+			missingZ_square = (1 - overhangZ_square)
+			missingZ_px = missingZ_square * GCS.squarePixelLength
+			upPadding = pv.Image.black(image.width, missingZ_px)
+			image = upPadding.join(image, "vertical")
+		return image
+
+	def stylePlane(self, image):
+		# Plane styling pipeline
+		image = brightnessAndContrast(image)
+		image = grayscale(image)
+		image = blur(image)
+		return image
+
+	def renameFile(self, filePath, zoom, defsDimensions, basePath):
+		splitPath = os.path.normpath(filePath).split(os.sep)[-5:]
+		planeNum = int(splitPath[0].split("_")[-1])
+		zoom = int(splitPath[1])
+		y = int(splitPath[-2])
+		x = int(splitPath[-1].split(".")[0])
+		
+		# Scale factor is relevant for determining the correct positions
+		scaleFactor = 2.0 ** zoom / 2.0 ** CONFIG.zoom.baselineZoomLevel
+
+		# Calculate the height of the slice
+		# Need to add one to get the coordinate of the top of the highest square
+		# Then use ceiling on the scaling calculation to get the top left corner
+		upperY = math.ceil((defsDimensions["upperZ"] + 1) / (scaleFactor ** -1))
+		lowerY = defsDimensions["lowerZ"] // (scaleFactor ** -1)
+		height = (upperY - lowerY)
+
+		# Transform the image location within slicer frame to bottom left coordinates
+		x_sliceSquare = x
+		y_sliceSquare = height - y - 1
+
+		# Calculate the coordinate of the bottom left of the slicer frame
+		slicerXBL_square = defsDimensions["lowerX"] // (scaleFactor ** -1)
+		slicerYBL_square = lowerY
+
+		# Add the distance from Jagex reference to distance from slicer bottom left
+		relX = slicerXBL_square + x_sliceSquare
+		relY = slicerYBL_square + y_sliceSquare
+
+		newFileName = f"{planeNum}_{int(relX)}_{int(relY)}.png"
+		outPath = CONFIG.directory.outPath
+		outPath = os.path.join(basePath, outPath, str(self.mapID), f"{zoom}")
+		if not os.path.exists(outPath):
+			os.makedirs(outPath)
+
+		# If there is an old file in the way it should be replaced
+		newPath = os.path.join(outPath, newFileName)
+		if os.path.exists(newPath):
+			os.remove(newPath)
+		os.rename(filePath, newPath)
+
+	def removeSubdirectories(self, topLevelDir):
+		# Depth first search to find all directories and files
+		dirsToRemove = glob.glob(os.path.join(topLevelDir, "**/"))
+		dirsToRemove = [os.path.normpath(path) for path in dirsToRemove]
+		filesToRemove = glob.glob(os.path.join(topLevelDir, "*.*"))
+		filesToRemove = [os.path.normpath(path) for path in filesToRemove]
+		for dir in dirsToRemove:
+			# Empty subdirectories and delete
+			self.removeSubdirectories(dir)
+			os.rmdir(dir)
+		# Remove files from this directory
+		for file in filesToRemove:
+			os.remove(file)
+
+class MapIconManager:
+	# Holds definitions for icons
+	# Holds a square-coordinate indexable map, a list of all icons in the square
+	def __init__(self, iconDefs: list[IconDefinition], basePath) -> None:
+		# Sort the icon defs and save
+		self.iconDefs = iconDefs
+
+		# Manager loads its own icons for reference
+		self.basePath = basePath
+		
+		# Filter out icons not in the definitions
+		self._sortDefinitions()
+		self._loadIconImages()
+		self._processIconList()
+
+	def _sortDefinitions(self):
+		self.iconDefs.sort()
+
+	def _loadIconImages(self):
+		# Load all the icon images into referenceable memory
+		self.iconIDtoImage = dict()
+		iconImageDir = os.path.join(self.basePath, CONFIG.icon.iconPath)
+		iconImagePaths = glob.iglob(os.path.join(iconImageDir, "*.png"))
+		for iconImagePath in iconImagePaths:
+			iconID = int(os.path.basename(iconImagePath).split(".")[0])
+			iconImageContainer = IconImage(iconImagePath)
+			self.iconIDtoImage[iconID] = iconImageContainer
+
+	def _processIconList(self):
+		
+		pass
+		
+
+	def calculateOwnerTiles(self):
+		# zoomLevelHasIcons = CONFIG.icon.zoomLevelHasIcons.items()
+		# zoomLevelsWithIcons = {int(k):v for k,v in zoomLevelHasIcons if v}
+		# for zoomLevel in zoomLevelsWithIcons:
+		# 	for iconDef in self.iconDefs:
+		# 		pass
+		pass
+
+
+# How much encapsulation?
+
+# IconDefinition holds tileX, tileZ, plane, and spriteID (plus render index)
+# - Expect to fetch this data
+# - Encapsulates the unload from json
+# - Custom repr
+# IconImage holds the pyvips image and the source path
+# IconData holds IconDefinition and IconImage
+
+# MapManager holds all the map data and highest-level methods
+# - There is a list of planes
+# - Planes are mosaic managers containing squares
+# - Squares can also be mosaics containing zones
+
+# A squareData is defined by its squareDefinition, squareImage
+# A zoneData is defined by its zoneDefinition, zoneImage
+# There is no planeData, only planeManagers with squares
+
+
+def buildMapID(mapID, basePath, squareDefsPath, zoneDefsPath, iconDefsPath):
+	# Load definitions that create the mapID
+	squareDefs = SquareDefinition.squareDefsFromJSON(squareDefsPath, basePath)
+	zoneDefs = ZoneDefinition.zoneDefsFromJSON(zoneDefsPath, basePath)
+	defsManager = MapDefsManager(squareDefs, zoneDefs)
+
+	# Build the mapID
+	mapBuilder = MapBuilder(defsManager, mapID)
+	mapBuilder.renderImages(basePath)
+
+	# Load icon definitions
+	iconDefs = IconDefinition.iconDefsFromJSON(iconDefsPath)
+	iconManager = MapIconManager(iconDefs, basePath)
+	# print(iconDefs)
 
 def actionRoutine(basePath):
 	"""
-		Generates all tiles for mapIDs using the worldMapCompositeDefinitions files from RuneLite
-		Uses classes to store the data from the definitions and renders the images tile by tile
-		Each generated image is then rescaled, styled, composited, sliced per config file settings
-		The resulting image directory is then restructured to match Jagex/Leaflet coordinates
+	Generates all tiles for all mapIDs using the worldMapCompositeDefinitions 
+	
+	Loads definition files dumped from RuneLite, passing the information to
+	classes to store the data. Using that information, the tile images are
+	generated. Each generated image is then rescaled, styled, composited, 
+	and sliced per config file settings. The resulting image directory from a
+	dzsave operation is then restructured to match Jagex/Leaflet coordinates
 	"""
-	coordFilePath = os.path.join(basePath, "coordinateData.json")
-	with open(coordFilePath) as coordDataFile:
-		coordData = json.load(coordDataFile)
-	with open("./scripts/mapBuilderConfig.json") as configFile:
-		configData = json.load(configFile)
+	# Data paths
+	squareDefsPath = CONFIG.mapid.squareDefsPath
+	squareDefsPath = os.path.join(basePath, squareDefsPath)
+	zoneDefsPath = CONFIG.mapid.zoneDefsPath
+	zoneDefsPath = os.path.join(basePath, zoneDefsPath)
 
-	# Load the map definitions
-	definitionsDirPath = os.path.join(basePath, "worldMapCompositeDefinitions")
-	mapDefinitions = loadDefinitions(definitionsDirPath)
+	iconDefsPath = CONFIG.icon.iconDefs
+	iconDefsPath = os.path.join(basePath, iconDefsPath)
+	# baseTilePath = os.path.join(basePath, "tiles/rendered/-1/2")
+	# coordDataPath = os.path.join(basePath, "coordinateData.json")
+	# configDataPath = os.path.join(basePath, "./scripts/mapBuilderConfig.json")
 
-	# Find the base tiles to use
-	baseTileDir = os.path.join(basePath, configData["MAPID_OPTS"]["baseTilePath"])
+	# Count determines how many mapIDs are generated
+	squareDefsCount = len(os.listdir(squareDefsPath))
+	zoneDefsCount = len(os.listdir(zoneDefsPath))
+	defsCount = min(squareDefsCount, zoneDefsCount)
 
 	# Build the mapID
-	for mapID in range(0, mapDefinitions["count"]):
-		# prevTime = time.time()
-		# print(f"MapID: {mapID}")
-		squareDefs = mapDefinitions["squares"][mapID]
-		zoneDefs = mapDefinitions["zones"][mapID]
-		mapIDoutPath = os.path.join(basePath, configData["MAPID_OPTS"]["mapIDoutPath"], str(mapID))
-		buildMapID(mapID, squareDefs, zoneDefs, coordData, baseTileDir, mapIDoutPath, configData)
-		# print(f"\tTime: {time.time()-prevTime}")
+	# for mapID in range(defsCount):
+	# 	prevTime = time.time()
+	# 	print(f"MapID: {mapID}")
+	# 	squareDefPath = os.path.join(squareDefsPath, f"mapSquareDefinitions_{mapID}.json")
+	# 	zoneDefPath = os.path.join(zoneDefsPath, f"zoneDefinitions_{mapID}.json")
+	# 	buildMapID(mapID, basePath, squareDefPath, zoneDefPath, iconDefsPath)
+	# 	print(f"\tTime: {time.time()-prevTime}")
 
-	# mapID = 4
-	# mapIDoutPath = os.path.join(basePath, configData["MAPID_OPTS"]["mapIDoutPath"], str(mapID))
-	# buildMapID(mapID, mapDefinitions["squares"][mapID], mapDefinitions["zones"][mapID], coordData, baseTileDir, mapIDoutPath, configData)
+	mapID = 44
+	squareDefsPath = os.path.join(squareDefsPath, f"mapSquareDefinitions_{mapID}.json")
+	zoneDefsPath = os.path.join(zoneDefsPath, f"zoneDefinitions_{mapID}.json")
+	buildMapID(mapID, basePath, squareDefsPath, zoneDefsPath, iconDefsPath)
 
 if __name__ == "__main__":
 	startTime = time.time()
