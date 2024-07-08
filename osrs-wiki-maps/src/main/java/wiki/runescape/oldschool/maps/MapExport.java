@@ -138,6 +138,7 @@ public class MapExport {
         coords.put("squarePixelLength", 256);
         coords.put("squareZoneLength", 8);
         coords.put("zonePixelLength", 32);
+        coords.put("zoneTileLength", 8);
         json = gson.toJson(coords);
         out.write(json);
         out.close();

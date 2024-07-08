@@ -3,121 +3,125 @@ import json
 
 
 class Singleton(type):
-    _instances = {}
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
+	_instances = {}
+	def __call__(cls, *args, **kwargs):
+		if cls not in cls._instances:
+			cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+		return cls._instances[cls]
 
 
 class MapBuilderConfig(metaclass=Singleton):
-    """
-    A singleton made available to the entire map builder workspace
-    Using a metaclass ensures there will only ever be one instance
-    """
-    @dataclass
-    class CompositeConfig(metaclass=Singleton):
-        transparencyColor: int | list
-        transparencyTolerance: int | list
-        brightnessFraction: float
-        contrastFraction: float
-        grayscaleFraction: float
-        blurRadius: int
-        sourcePath: str
-        outPath: str
+	"""
+	A singleton made available to the entire map builder workspace
+	Using a metaclass ensures there will only ever be one instance
+	"""
+	@dataclass
+	class CompositeConfig(metaclass=Singleton):
+		transparencyColor: int | list
+		transparencyTolerance: int | list
+		brightnessFraction: float
+		contrastFraction: float
+		grayscaleFraction: float
+		blurRadius: int
+		sourcePath: str
+		outPath: str
 
-    @dataclass
-    class ZoomConfig(metaclass=Singleton):
-        zoomLevels: dict
-        baselineZoomLevel: int
-        kernels: dict
-        sourcePath: str
-        outPath: str
+	@dataclass
+	class ZoomConfig(metaclass=Singleton):
+		zoomLevels: dict
+		baselineZoomLevel: int
+		kernels: dict
+		sourcePath: str
+		outPath: str
 
-        def __post_init__(self):
-            # Extract min and max zoom levels for ease of reference
-            self.minZoom = self.zoomLevels["min"]
-            self.maxZoom = self.zoomLevels["max"]
+		def __post_init__(self):
+			# Extract min and max zoom levels for ease of reference
+			self.minZoom = self.zoomLevels["min"]
+			self.maxZoom = self.zoomLevels["max"]
 
-            # Adjust str keys to ints for ease of use
-            self.kernels = {int(k):v for k,v in self.kernels.items()}
+			# Adjust str keys to ints for ease of use
+			self.kernels = {int(k):v for k,v in self.kernels.items()}
 
-    @dataclass
-    class IconConfig(metaclass=Singleton):
-        mapIDDirectory: str
-        iconPath: str
-        iconDefs: str
-        zoomLevelHasIcons: dict
-        planePath: str
-        outPath: str
+	@dataclass
+	class IconConfig(metaclass=Singleton):
+		mapIDDirectory: str
+		iconPath: str
+		iconDefs: str
+		zoomLevelHasIcons: dict
+		planePath: str
+		outPath: str
+		planeHasIconsFromPlanes: dict
+		iconSize: int
 
-        def __post_init__(self):
-            # Adjust str keys to ints for ease of use
-            self.zoomLevelHasIcons = {int(k):v for k,v in 
-                                      self.zoomLevelHasIcons.items()}
+		def __post_init__(self):
+			# Adjust str keys to ints for ease of use
+			self.zoomLevelHasIcons = {int(k):v for k,v in 
+									  self.zoomLevelHasIcons.items()}
+			self.planeHasIconsFromPlanes = {int(k):v for k,v in
+								   	  		self.planeHasIconsFromPlanes.items()}
 
-    @dataclass
-    class TilerConfig(metaclass=Singleton):
-        backgroundColor: int | list
-        backgroundThreshold: int | list
-        layerPath: str
-        outPath: str
-        baselineZoomLevel: int
-        imagePath: str
+	@dataclass
+	class TilerConfig(metaclass=Singleton):
+		backgroundColor: int | list
+		backgroundThreshold: int | list
+		layerPath: str
+		outPath: str
+		baselineZoomLevel: int
+		imagePath: str
 
-    @dataclass
-    class DirConfig(metaclass=Singleton):
-        multiprocessingEnabled: bool
-        dzPath: str
-        outPath: str
-        baselineZoomLevel: int
+	@dataclass
+	class DirConfig(metaclass=Singleton):
+		multiprocessingEnabled: bool
+		dzPath: str
+		outPath: str
+		baselineZoomLevel: int
 
-    @dataclass
-    class MapIDConfig(metaclass=Singleton):
-        baseTilePath: str
-        mapIDoutPath: str
-        squareDefsPath: str
-        zoneDefsPath: str
+	@dataclass
+	class MapIDConfig(metaclass=Singleton):
+		baseTilePath: str
+		mapIDoutPath: str
+		squareDefsPath: str
+		zoneDefsPath: str
 
-    def __init__(self, composite: CompositeConfig, zoom: ZoomConfig, 
-                 tiler: TilerConfig, dir: DirConfig, 
-                 icon: IconConfig, mapid: MapIDConfig) -> None:
-        self.composite = composite
-        self.zoom = zoom
-        self.tiler = tiler
-        self.directory = dir
-        self.icon = icon
-        self.mapid = mapid
+	def __init__(self, composite: CompositeConfig, zoom: ZoomConfig, 
+				 tiler: TilerConfig, dir: DirConfig, 
+				 icon: IconConfig, mapid: MapIDConfig) -> None:
+		self.composite = composite
+		self.zoom = zoom
+		self.tiler = tiler
+		self.directory = dir
+		self.icon = icon
+		self.mapid = mapid
 
-    @classmethod
-    def fromJSON(cls, jsonFilePath):
-        with open(jsonFilePath) as jsonFile:
-            jsonData = json.load(jsonFile) # type: dict
+	@classmethod
+	def fromJSON(cls, jsonFilePath):
+		with open(jsonFilePath) as jsonFile:
+			jsonData = json.load(jsonFile) # type: dict
 
-        compositeOpts = jsonData.get("COMPOSITE_OPTS")
-        compositeConfig = MapBuilderConfig.CompositeConfig(**compositeOpts)
-        zoomOpts = jsonData.get("ZOOM_OPTS")
-        zoomConfig = MapBuilderConfig.ZoomConfig(**zoomOpts)
-        tilerOpts = jsonData.get("TILER_OPTS")
-        tilerConfig = MapBuilderConfig.TilerConfig(**tilerOpts)
-        dirOpts = jsonData.get("DIR_OPTS")
-        dirConfig = MapBuilderConfig.DirConfig(**dirOpts)
-        iconOpts = jsonData.get("ICON_OPTS")
-        iconConfig = MapBuilderConfig.IconConfig(**iconOpts)
-        mapidOpts = jsonData.get("MAPID_OPTS")
-        mapidConfig = MapBuilderConfig.MapIDConfig(**mapidOpts)
+		compositeOpts = jsonData.get("COMPOSITE_OPTS")
+		compositeConfig = cls.CompositeConfig(**compositeOpts)
+		zoomOpts = jsonData.get("ZOOM_OPTS")
+		zoomConfig = cls.ZoomConfig(**zoomOpts)
+		tilerOpts = jsonData.get("TILER_OPTS")
+		tilerConfig = cls.TilerConfig(**tilerOpts)
+		dirOpts = jsonData.get("DIR_OPTS")
+		dirConfig = cls.DirConfig(**dirOpts)
+		iconOpts = jsonData.get("ICON_OPTS")
+		iconConfig = cls.IconConfig(**iconOpts)
+		mapidOpts = jsonData.get("MAPID_OPTS")
+		mapidConfig = cls.MapIDConfig(**mapidOpts)
 
-        new = cls(compositeConfig, zoomConfig, tilerConfig, 
-                  dirConfig, iconConfig, mapidConfig)
+		new = cls(compositeConfig, zoomConfig, tilerConfig, 
+				  dirConfig, iconConfig, mapidConfig)
 
-        return new
-    
+		return new
+	
 
 # Alternative approach I'm not sure about
 # def loadBuilderConfig(path):
 #     with open(path) as jsonFile:
 #         jsonData = json.load(jsonFile) # type: dict
-    
+	
 #     compositeOpts = jsonData.get("COMPOSITE_OPTS")
 #     for name, value in compositeOpts.items():
 #         setattr(MapBuilderConfig.CompositeConfig, name, value)
@@ -125,19 +129,19 @@ class MapBuilderConfig(metaclass=Singleton):
 #     zoomOpts = jsonData.get("ZOOM_OPTS")
 #     for name, value in zoomOpts.items():
 #         setattr(MapBuilderConfig.ZoomConfig, name, value)
-    
+	
 #     tilerOpts = jsonData.get("TILER_OPTS")
 #     for name, value in tilerOpts.items():
 #         setattr(MapBuilderConfig.TilerConfig, name, value)
-    
+	
 #     dirOpts = jsonData.get("DIR_OPTS")
 #     for name, value in dirOpts.items():
 #         setattr(MapBuilderConfig.DirConfig, name, value)
-    
+	
 #     iconOpts = jsonData.get("ICON_OPTS")
 #     for name, value in iconOpts.items():
 #         setattr(MapBuilderConfig.IconConfig, name, value)
-    
+	
 #     mapidOpts = jsonData.get("MAPID_OPTS")
 #     for name, value in mapidOpts.items():
 #         setattr(MapBuilderConfig.MapIDConfig, name, value)

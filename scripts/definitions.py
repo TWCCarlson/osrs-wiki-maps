@@ -59,6 +59,12 @@ class SquareDefinition:
 	def getDisplaySquare(self) -> tuple:
 		return (self.displaySquareX, self.displaySquareZ)
 	
+	def getFullSource(self) -> tuple:
+		return (self.sourceSquareX, self.sourceSquareZ)
+	
+	def getFullDisplay(self) -> tuple:
+		return (self.displaySquareX, self.displaySquareZ)
+	
 	def getPlaneRange(self) -> tuple:
 		return (self.lowerPlane, self.upperPlane)
 
@@ -115,6 +121,14 @@ class ZoneDefinition(SquareDefinition):
 
 	def getDisplayZone(self) -> tuple:
 		return (self.displayZoneX, self.displayZoneZ)
+	
+	def getFullSource(self) -> tuple:
+		return (self.sourceSquareX, self.sourceSquareZ, 
+		  		self.sourceZoneX, self.sourceZoneZ)
+	
+	def getFullDisplay(self) -> tuple:
+		return (self.displaySquareX, self.displaySquareZ,
+		  		self.displayZoneX, self.displayZoneZ)
 
 	def __repr__(self) -> str:
 		repr = (f"ZoneDef: Source[{self.sourceSquareX}, {self.sourceSquareZ}]"
@@ -134,11 +148,34 @@ class IconDefinition:
 	# Post-init values
 	x_square: int = field(init=False, compare=False)
 	z_square: int = field(init=False, compare=False)
+	x_zone: int = field(init=False, compare=False)
+	z_zone: int = field(init=False, compare=False)
 
-	# def __post_init__(self):
-	# 	# Calculate the owning square and icon's relative position to it
-	# 	self.x_square = self.x_tile // GCS.squareTileLength
-	# 	self.z_square = self.z_tile // GCS.squareTileLength
+	def getOwnerSquare(self):
+		# Return coordinates relative to the lower left of the square
+		sqX = self.x_tile // GCS.squareTileLength
+		sqZ = self.z_tile // GCS.squareTileLength
+		return (sqX, sqZ)
+	
+	def getTileRelativeToOwnerSquare(self):
+		relX = self.x_tile % GCS.squareTileLength
+		relZ = self.z_tile % GCS.squareTileLength
+		return (relX, relZ)
+	
+	def getOwnerZone(self):
+		# Return coordinates relative to the lower left of the zone
+		znX = self.x_tile % GCS.squareTileLength // GCS.zoneTileLength
+		znZ = self.z_tile % GCS.squareTileLength // GCS.zoneTileLength
+		return (znX, znZ)
+	
+	def getTileRelativeToOwnerZone(self):
+		relX = self.x_tile % GCS.zoneTileLength
+		relZ = self.z_tile % GCS.zoneTileLength
+		return (relX, relZ)
+	
+	def getOwnerTile(self):
+		# Return the tile coordinates of the icon
+		return (self.x_tile, self.z_tile)
 
 	@classmethod
 	def iconDefsFromJSON(cls, jsonFilePath):

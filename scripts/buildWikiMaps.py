@@ -59,11 +59,15 @@ if __name__ == "__main__":
 		planeNum = int(imageName.split("_")[-1])
 		planeImagePaths[planeNum] = imagePath
 
+	print(planeImagePaths)
+	input("Press enter")
+
 	# The following steps are done plane-by-plane
 	for planeNum, planePath in planeImagePaths.items():
 		# 3. Create the composite image of the plane
 		# print(f"COMPOSITING {planeNum}")
-		planeImage = createCompositeImages.createComposites(planeNum, planeImagePaths)
+		planeImage = pv.Image.new_from_file(planePath)
+		# planeImage = createCompositeImages.createComposites(planeNum, planeImagePaths)
 		# outPath = f"./osrs-wiki-maps/out/mapgen/versions/2024-05-29_a/fullplanes/composites/"
 		# if not os.path.exists(outPath):
 		# 	os.makedirs(outPath)
@@ -89,9 +93,9 @@ if __name__ == "__main__":
 	print(f"Directory fix took: {time.time()-dirTime}")
 
 	# Draw icons onto tiles
-	iconTime = time.time()
-	insertIcons.actionRoutine(outputDir)
-	print(f"Icon insertion took: {time.time()-iconTime}")
+	# iconTime = time.time()
+	# insertIcons.actionRoutine(outputDir)
+	# print(f"Icon insertion took: {time.time()-iconTime}")
 
 	# Done
 	print(f"Finished in {time.time()-startTime} seconds")

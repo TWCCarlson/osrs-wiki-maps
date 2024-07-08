@@ -27,7 +27,6 @@ import pyvips as pv
 
 
 # Generic image processing
-
 def brightnessAndContrast(image):
 	brightnessFrac = CONFIG.composite.brightnessFraction
 	contrastFrac = CONFIG.composite.contrastFraction
@@ -267,6 +266,9 @@ class MapBuilder():
 
 			# Style the planes and then stack them for aesthetics
 			image = targetPlane.getImage()
+			# print(image)
+			image.write_to_file(f"plane_{planeNum}.png")
+			
 			# The lowest plane is the base image for stacking operations
 			if planeNum == self.lowerPlane:
 				baseImage = image
@@ -311,7 +313,7 @@ class MapBuilder():
 		# Select the kernel for this zoom level (zooming in uses NN)
 		kernels = CONFIG.zoom.kernels
 		kernelStyle = kernels[zoomLevel]
-		
+
 		# Scale
 		zoomedImage = image.resize(scaleFactor, kernel=kernelStyle)
 		return zoomedImage
@@ -460,6 +462,93 @@ class MapBuilder():
 		for file in filesToRemove:
 			os.remove(file)
 
+	def renderIcons(self, tileImagePath, iconList: dict[int, list[MapIcon]]):
+		# Draws icons onto the rendered tiles from slicing
+		# Requires calculating the scaing factor to place the icons
+		# Reliant on the directory renaming scheme to choose the right tiles
+		zoomLevelsWithIcons = [z for z,i in CONFIG.icon.zoomLevelHasIcons.items() if i]
+		for zoomLevel in zoomLevelsWithIcons:
+			# Get a list of all the tiles to update and the icons in them
+			tilesWithIcons = defaultdict(lambda: defaultdict(list))
+			for plane, icons in iconList.items():
+				for icon in icons:
+					# Ownership
+					x, z = icon.tilePosition[zoomLevel]
+					tilesWithIcons[plane][(x, z)].append(icon)
+					# Overflow
+					for overflowTile in icon.overflowsInto[zoomLevel]:
+						ox, oz = overflowTile
+						tilesWithIcons[plane][(ox, oz)].append(icon)
+			
+			# Iterate the list of tiles to modify or create images as necessary
+			for plane, tiles in tilesWithIcons.items():
+				for tile, icons in tiles.items():
+					# If there are no icons, skip the tile entirely
+					if not icons:
+						continue
+					# Determine the path of this tile
+					imageName = f"{plane}_{tile[0]}_{tile[1]}.png"
+					p = os.path.join(tileImagePath, str(zoomLevel), imageName)
+					# Insert icons to the tile's image
+					image = self.insertIcons(p, tile[0], tile[1], 
+					   							 icons, zoomLevel)
+					# Save the resulting image to the directory
+					image.write_to_file(p)					
+
+	def insertIcons(self, path, x, z, iconList: list[MapIcon], zoomLevel):
+		# Draw icons onto the tile image
+		# This is done by compositing the icons into one image, then using
+		# a mask to paste the resulting image overtop the existing image
+		iconLayer = self.createIconLayer(x, z, iconList, zoomLevel)
+		
+		# Mask the icon layer overtop the tile image
+		layerMask = (iconLayer[3] == 255)
+		if os.path.exists(path):
+			# If the image exists already, load it
+			tileImage = pv.Image.new_from_file(path)
+		else:
+			# If the image does not exist, create a new blank image
+			tileImage = pv.Image.black(256, 256, bands=3)
+			tileImage = tileImage.copy(interpretation="srgb")
+		outImage = layerMask.ifthenelse(iconLayer[0:3], tileImage) # drop alpha
+		return outImage
+
+	def createIconLayer(self, x, z, iconList: list[MapIcon], zoomLevel):
+		iconLayer = pv.Image.black(256, 256, bands=4).copy(interpretation="srgb")
+		for icon in iconList:
+			# print(f"DRAWING {icon}")
+			# Fetch image, icon owner tile, and location in owner tile
+			iconImage = icon.imageContainer.image
+			iconX_tile, iconZ_tile = icon.tilePosition[zoomLevel]
+			x_px, z_px = icon.positionInTile[zoomLevel]
+
+			# Temporary layer for this icon only
+			temp = pv.Image.black(256, 256, bands=4).copy(interpretation="srgb")
+
+			# Find the draw location for the icon in this tile
+			if iconX_tile==x and iconZ_tile==z:
+				# If the tile being drawn is the same as the icons owner tile
+				# The in tile location can just be used, adjusting to top left
+				iconX_px = x_px - math.ceil(iconImage.width/2)
+				iconZ_px = z_px - math.ceil(iconImage.height/2)
+			else:
+				# If the tile overflows into this tile, the offset which 
+				# places the icon in the correct position outside this tile 
+				# needs to be found
+				offsetX = x - iconX_tile
+				offsetZ = z - iconZ_tile
+				# From the offset, calculate the correct pixel position
+				iconX_px = x_px - (offsetX*256) - math.ceil(iconImage.width/2)
+				# Recall that +ve z coordinates values indicate the top left
+				# while +ve z pixels indicate the bottom left
+				iconZ_px = z_px + (offsetZ*256) - math.ceil(iconImage.height/2)
+			# Insert the icon image
+			temp = temp.insert(iconImage, iconX_px, iconZ_px, expand=False)
+			# Mask the temporary image overtop the base image
+			mask = (temp[3] == 255)
+			iconLayer = mask.ifthenelse(temp, iconLayer)
+		return iconLayer
+
 class MapIconManager:
 	# Holds definitions for icons
 	# Holds a square-coordinate indexable map, a list of all icons in the square
@@ -489,39 +578,118 @@ class MapIconManager:
 			self.iconIDtoImage[iconID] = iconImageContainer
 
 	def _processIconList(self):
+		# Store icons to be accessed via owner coordinates
+		self.iconStore = defaultdict(lambda: # [plane]
+						 defaultdict(lambda: # [square]
+						 defaultdict(list))) # [zone]
+		for iconDef in self.iconDefs:
+			plane = iconDef.plane
+			sqX, sqZ = iconDef.getOwnerSquare()
+			znX, znZ = iconDef.getOwnerZone()
+			self.iconStore[plane][(sqX, sqZ)][(znX, znZ)].append(iconDef)
+
+	def getIconsInID(self, squareDefs: list[SquareDefinition], 
+				  	 zoneDefs: list[ZoneDefinition],
+					 mapBuilder: MapBuilder):
+		# Return dict with plane numbers as keys, mapped to icons in plane
+		renderedIcons = defaultdict(list)
+
+		# Using the structure of the ID determined by the builder, find
+		# all icons that should be represented in each defined map element
+		for plane in range(mapBuilder.lowerPlane, mapBuilder.upperPlane+1):
+			# For each plane, evaluate the elements in the plane
+			targetPlane = mapBuilder.planes[plane] # type: MapPlane
+			for square, element in targetPlane.mosaic.items():
+				if isinstance(element, MapSquareOfZones):
+					# Another layer of mosaic needs to be parsed
+					for zone, subelem in element.mosaic.items():
+						newIconList = self.getIconsInCell(plane, subelem)
+						renderedIcons[plane].extend(newIconList)
+				elif isinstance(element, MapSquare):
+					newIconList = self.getIconsInCell(plane, element)
+					renderedIcons[plane].extend(newIconList)
+		return renderedIcons
+
+	def getIconsInCell(self, plane, cellContent: MapSquare | MapSquareOfZones):
+		cellDefinition = cellContent.definition
+		# If there is no definition, we do not render anything
+		if not cellDefinition:
+			return defaultdict(list)
+		icons = defaultdict(list)
+		# Cover the whole plane range, finding all icons from the same region
+		lowerPlane, upperPlane = cellDefinition.getPlaneRange()
+		for defPlane in range(0, 3+1):
+			sourceCoords = cellDefinition.getFullSource()
+			iconsInCell = self.getIconsInDef(defPlane, *sourceCoords)
+			for icon in iconsInCell:
+				newIcon = self.createMapIcon(defPlane, icon, cellDefinition)
+				icons[defPlane].append(newIcon)
+		# Only return the list of icons that are rendered in this cell's plane
+		outList = list()
+		for planeNum, iconList in icons.items():
+			if planeNum in CONFIG.icon.planeHasIconsFromPlanes[plane]:
+				outList.extend(iconList)
+		return outList
+
+	def getIconsInDef(self, plane, squareX, squareZ, 
+				   	  zoneX=None, zoneZ=None):
+		# Search the iconStore for icons that fall within the square and zone
+		# Not supplying zone coordinates means the whole square is checked
+		iconList = list()
+
+		# Access the datastructure for the specified square
+		squareData = self.iconStore[plane][(squareX, squareZ)]
+		if zoneX is None and zoneZ is None:
+			# If no zone was specified, then flatten the data
+			sqL = [icon for icons in squareData.values() for icon in icons]
+			iconList.extend(sqL)
+		else:
+			# Otherwise, only append the icons in the zone
+			iconList.extend(squareData[(zoneX, zoneZ)])
+		return iconList
+
+	def createMapIcon(self, planeNum, iconDefinition: IconDefinition, 
+				   	  mapDefinition: SquareDefinition | ZoneDefinition):
+		# Create the map element of the icon, with image and icondef loaded
+		# Use the map definition to set the display coordinates
+
+		# Create the MapIcon instance, based on the icon definition
+		newIcon = MapIcon(iconDefinition, planeNum)
+
+		# Set the icon's image, which was pre-loaded earlier
+		spriteID = iconDefinition.spriteID
+		iconSprite = self.iconIDtoImage[spriteID]
+		newIcon.setImage(iconSprite)
+
+		# Set the icon's display coordinates
+		# Need to determine how the icon is being moved by the definition
+		# This must be done relative to the lower left of the square,
+		# or zone, if it is mentioned in the definition
+		if isinstance(mapDefinition, ZoneDefinition):
+			# For zones, find the zone-relative position of the icon
+			znRelX, znRelZ = iconDefinition.getTileRelativeToOwnerZone()
+			# Then find the base point of the display zone
+			dsqX, dsqZ = mapDefinition.getDisplaySquare()
+			dznX, dznZ = mapDefinition.getDisplayZone()
+			baseX = dsqX * GCS.squareTileLength + dznX * GCS.zoneTileLength
+			baseZ = dsqZ * GCS.squareTileLength + dznZ * GCS.zoneTileLength
+			# Final location is the relative position added to the base point
+			dX_tile = baseX + znRelX
+			dZ_tile = baseZ + znRelZ
+		else:
+			# Squares are simpler, just get the square-relative coordinates
+			sqRelX, sqRelZ = iconDefinition.getTileRelativeToOwnerSquare()
+			# And add them to the base point of the display square
+			dsqX, dsqZ = mapDefinition.getDisplaySquare()
+			dX_tile = dsqX * GCS.squareTileLength + sqRelX
+			dZ_tile = dsqZ * GCS.squareTileLength + sqRelZ
+		# The baseline display coordinates can now be set
+		newIcon.setDisplayCoordinates(dX_tile, dZ_tile)
+		return newIcon
 		
-		pass
-		
 
-	def calculateOwnerTiles(self):
-		# zoomLevelHasIcons = CONFIG.icon.zoomLevelHasIcons.items()
-		# zoomLevelsWithIcons = {int(k):v for k,v in zoomLevelHasIcons if v}
-		# for zoomLevel in zoomLevelsWithIcons:
-		# 	for iconDef in self.iconDefs:
-		# 		pass
-		pass
-
-
-# How much encapsulation?
-
-# IconDefinition holds tileX, tileZ, plane, and spriteID (plus render index)
-# - Expect to fetch this data
-# - Encapsulates the unload from json
-# - Custom repr
-# IconImage holds the pyvips image and the source path
-# IconData holds IconDefinition and IconImage
-
-# MapManager holds all the map data and highest-level methods
-# - There is a list of planes
-# - Planes are mosaic managers containing squares
-# - Squares can also be mosaics containing zones
-
-# A squareData is defined by its squareDefinition, squareImage
-# A zoneData is defined by its zoneDefinition, zoneImage
-# There is no planeData, only planeManagers with squares
-
-
-def buildMapID(mapID, basePath, squareDefsPath, zoneDefsPath, iconDefsPath):
+def buildMapID(mapID, basePath, squareDefsPath, zoneDefsPath,
+			   iconManager: MapIconManager):
 	# Load definitions that create the mapID
 	squareDefs = SquareDefinition.squareDefsFromJSON(squareDefsPath, basePath)
 	zoneDefs = ZoneDefinition.zoneDefsFromJSON(zoneDefsPath, basePath)
@@ -531,10 +699,11 @@ def buildMapID(mapID, basePath, squareDefsPath, zoneDefsPath, iconDefsPath):
 	mapBuilder = MapBuilder(defsManager, mapID)
 	mapBuilder.renderImages(basePath)
 
-	# Load icon definitions
-	iconDefs = IconDefinition.iconDefsFromJSON(iconDefsPath)
-	iconManager = MapIconManager(iconDefs, basePath)
-	# print(iconDefs)
+	# Load icon definitions relevant to this mapID
+	iconList = iconManager.getIconsInID(squareDefs, zoneDefs, mapBuilder)
+	mapIDPath = os.path.join(basePath, CONFIG.icon.mapIDDirectory, str(mapID))
+	mapBuilder.renderIcons(mapIDPath, iconList)
+
 
 def actionRoutine(basePath):
 	"""
@@ -563,6 +732,11 @@ def actionRoutine(basePath):
 	zoneDefsCount = len(os.listdir(zoneDefsPath))
 	defsCount = min(squareDefsCount, zoneDefsCount)
 
+	# The icon manager should only be created once, as icons are reused in IDs
+	# Load icon definitions
+	iconDefs = IconDefinition.iconDefsFromJSON(iconDefsPath)
+	iconManager = MapIconManager(iconDefs, basePath)
+
 	# Build the mapID
 	# for mapID in range(defsCount):
 	# 	prevTime = time.time()
@@ -572,10 +746,10 @@ def actionRoutine(basePath):
 	# 	buildMapID(mapID, basePath, squareDefPath, zoneDefPath, iconDefsPath)
 	# 	print(f"\tTime: {time.time()-prevTime}")
 
-	mapID = 44
+	mapID = 4
 	squareDefsPath = os.path.join(squareDefsPath, f"mapSquareDefinitions_{mapID}.json")
 	zoneDefsPath = os.path.join(zoneDefsPath, f"zoneDefinitions_{mapID}.json")
-	buildMapID(mapID, basePath, squareDefsPath, zoneDefsPath, iconDefsPath)
+	buildMapID(mapID, basePath, squareDefsPath, zoneDefsPath, iconManager)
 
 if __name__ == "__main__":
 	startTime = time.time()

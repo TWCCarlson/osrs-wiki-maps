@@ -2,6 +2,7 @@ from definitions import (SquareDefinition, ZoneDefinition, IconDefinition)
 from images import MapImage, PlaneImage, SquareImage, ZoneImage, IconImage
 import os
 from config import MapBuilderConfig, GlobalCoordinateDefinition
+from math import floor
 CONFIG = MapBuilderConfig()
 GCS = GlobalCoordinateDefinition()
 
@@ -167,4 +168,80 @@ class MapZone(MapSquare):
 		return repr
 
 class MapIcon():
-	pass
+	def __init__(self, definition: IconDefinition, targetPlane) -> None:
+		# Load in the data
+		self.definition = definition
+		self.targetPlane = targetPlane
+		self.imageContainer = None # don't set for now
+		self.displayX_tile = None
+		self.displayZ_tile = None
+		
+		self.tilePosition = dict()
+		self.positionInTile = dict()
+		self.overflowsInto = dict()
+
+	def setImage(self, image: IconImage):
+		self.imageContainer = image
+	
+	def setDisplayCoordinates(self, x, z):
+		self.displayX_tile = x
+		self.displayZ_tile = z
+		self._calculateRenderPosition(x, z)
+
+	def _calculateRenderPosition(self, x_tile, z_tile):
+		# Calculates the tile and position in the tile the icon should be
+		# placed in at each relevant zoom level. Also determines if there is
+		# any overflowing of the icon image to be handled.
+
+		# Start with the owner display square coordinates
+
+		zoomLevelsWithIcons = [z for z, i in 
+						 	   CONFIG.icon.zoomLevelHasIcons.items() if i]
+		for zoomLevel in zoomLevelsWithIcons:
+			# Calculate the leaflet tile coordinates for this zoom level
+			scaleFactor = 2.0**zoomLevel/2.0**CONFIG.zoom.baselineZoomLevel
+			scaleTileX = floor((x_tile * scaleFactor) // GCS.squareTileLength)
+			scaleTileZ = floor((z_tile * scaleFactor) // GCS.squareTileLength)
+			self.tilePosition[zoomLevel] = (scaleTileX, scaleTileZ)
+
+			# Calculate the relative position of the icon in the tile
+			# Start from bottom left (Jagex) coordinate origin
+			x_px = x_tile * GCS.tilePixelLength
+			z_px = z_tile * GCS.tilePixelLength
+			# Rescale and find piel coordinates relative to the tile
+			x_px = x_px * scaleFactor % 256
+			z_px = z_px * scaleFactor % 256
+			# Adjust to top left (pyvips) coordinate origin
+			z_px = 256 - z_px - 1
+			self.positionInTile[zoomLevel] = (x_px, z_px)
+
+			# Check if the icon overflows into other tiles
+			overflowDirs = list()
+			iconSize_px = CONFIG.icon.iconSize
+			leftOverflow = x_px - (iconSize_px//2) < 0
+			topOverflow = z_px - (iconSize_px//2) < 0
+			rightOverflow = x_px + (iconSize_px//2) > GCS.squarePixelLength
+			bottomOverflow = z_px + (iconSize_px//2) > GCS.squarePixelLength
+			# Relative y-values are top left origin (-ve means the tile above)
+			# But the in-game tiles are bottom left (+ve means the tile above)
+			# So "top overflow" means y+1, "right overflow" means x+1
+			if leftOverflow: overflowDirs.append((-1, 0))
+			if rightOverflow: overflowDirs.append((1, 0))
+			if topOverflow: overflowDirs.append((0, 1))
+			if bottomOverflow: overflowDirs.append((0, -1)) 
+			if leftOverflow and topOverflow: overflowDirs.append((-1, 1))
+			if leftOverflow and bottomOverflow: overflowDirs.append((-1, -1))
+			if rightOverflow and topOverflow: overflowDirs.append((1, 1))
+			if rightOverflow and bottomOverflow: overflowDirs.append((1, -1))
+			# Calculate the destination tile coordinates
+			overflowTiles = list()
+			for overflowDirection in overflowDirs:
+				overflowTiles.append((overflowDirection[0]+scaleTileX, 
+						 			  overflowDirection[1]+scaleTileZ))
+			# Store the overflow tiles into another dict
+			self.overflowsInto[zoomLevel] = overflowTiles
+
+
+	def __repr__(self) -> str:
+		repr = (f"MapIcon@{self.targetPlane}: {self.definition}")
+		return repr
