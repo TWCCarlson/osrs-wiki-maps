@@ -14,6 +14,7 @@ import os
 import time
 import json
 import glob
+import logging
 
 ### Pyvips import
 # Windows binaries are required: 
@@ -23,6 +24,8 @@ LIBVIPS_VERSION = "8.15"
 vipsbin = os.path.join(os.getcwd(), f"vipsbin/vips-dev-{LIBVIPS_VERSION}/bin")
 os.environ['PATH'] = os.pathsep.join((vipsbin, os.environ['PATH']))
 # os.environ['VIPS_PROFILE'] = "1"
+# os.environ["VIPS_CONCURRENCY"] = "1"
+# logging.basicConfig(level = logging.DEBUG)
 import pyvips as pv
 
 
@@ -258,56 +261,106 @@ class MapBuilder():
 		self.upperDisplayPlane = max(self.upperDisplayPlane, planeNum)
 		self.lowerDisplayPlane = min(self.lowerDisplayPlane, planeNum)
 
-	def renderImages(self, basePath):
-		# For each plane, render all relevant images
+	def createMapTiles(self, basePath):
+		# Pipeline for generating the map tiles specific to this mapID
+		TEMP_DIR = "./temp-planes"
+		os.mkdir(TEMP_DIR)
 		for planeNum in range(self.lowerDisplayPlane, self.upperDisplayPlane+1):
-			targetPlane = self.planes[planeNum] # type: MapMosaic
-			targetPlane.render()
+			# Render the plane image from its components
+			targetPlane = self.planes[planeNum]	# type: MapMosaic
+			if self.mapID == -1:
+				# The debug plane images already exist from the cache dump
+				planePath = os.path.join(basePath, f"fullplanes/base/plane_{planeNum}.png")
+				planeImage = pv.Image.new_from_file(planePath)
+			else:
+				planeImage = self.renderImages(targetPlane) # type: pv.Image
+				planePath = os.path.join(TEMP_DIR, f"plane_{planeNum}.png")
+				planeImage.write_to_file(planePath)
+				planeImage = pv.Image.new_from_file(planePath)
+			# Becuase of how process pipelines are handled, the preceding steps
+			# will be repeated quite a lot (i.e. plane 3 will generate a new 
+			# assembly of plane 0). It is better to use a single pipeline to 
+			# generate the base images, followed by new pipelines which start
+			# from this point.
+			# Restart the pipeline from this point to save time
 
-			# Style the planes and then stack them for aesthetics
-			image = targetPlane.getImage()
-			# print(image)
-			image.write_to_file(f"plane_{planeNum}.png")
-			
-			# The lowest plane is the base image for stacking operations
+			# There is no need to composte the lowest plane
 			if planeNum == self.lowerPlane:
-				baseImage = image
-				compositeImage = image
-			# For planes above 0, the finalized plane image will be a composite
+				baseImage = planeImage
+				compositeImage = planeImage
 			elif planeNum > self.lowerPlane:
-				# Create the stacked underlay
-				mask = targetPlane.imageContainer.getMask()
-				baseImage = mask.ifthenelse(image, baseImage)
-				styledPlane = self.stylePlane(baseImage)
-				compositeImage = mask.ifthenelse(image, styledPlane)
-
-			# Rescale the plane images and slice into map tiles
+				baseImage, compositeImage = self.compositeImages(planeImage, baseImage)
+			compositePath = os.path.join(TEMP_DIR, f"plane_{planeNum}_comp.png")
+			compositeImage.write_to_file(compositePath)
+			
+			# Restart the pipeline from this point to save time
+			compositeImage = pv.Image.new_from_file(compositePath)
 			minZoom = CONFIG.zoom.minZoom
 			maxZoom = CONFIG.zoom.maxZoom
-			baselineZoom = CONFIG.zoom.baselineZoomLevel
 			for zoomLevel in range(minZoom, maxZoom+1):
-				# Calculate scale factor for this zoom level
-				scaleFactor = 2.0 ** zoomLevel / 2.0 ** baselineZoom
-				zoomedImage = self.resizeImage(compositeImage, 
-								   			   zoomLevel, scaleFactor)
+				lowerX = targetPlane.bbox["lowerX"]
+				lowerZ = targetPlane.bbox["lowerZ"]
+				zoomedImage = self.rescaleImages(compositeImage, zoomLevel,
+									 			 lowerX, lowerZ)
 
-				# At each zoom level lower than baseline, the image need aligning
-				# Pad the image to the lower left point via integer division
-				if zoomLevel < 2:
-					lowerX = targetPlane.bbox["lowerX"]
-					zoomedImage = self.padLeft(zoomedImage, lowerX, scaleFactor)
-					lowerY = targetPlane.bbox["lowerZ"]
-					zoomedImage = self.padDown(zoomedImage, lowerY, scaleFactor)
-
-					# Grow the image up and right until it aligns with grid
-					zoomedImage = self.padRight(zoomedImage)
-					zoomedImage = self.padUp(zoomedImage)
-			
 				# The image can now be sliced
 				self.tileImage(zoomedImage, planeNum, zoomLevel)
 				
 				# The output directory of the slicer needs restructuring
 				self.restructureDirectory(planeNum, zoomLevel, basePath)
+
+		# Clean up temporary files
+		self.removeSubdirectories(TEMP_DIR)
+		os.rmdir(TEMP_DIR)
+
+	def renderImages(self, targetPlane: MapMosaic | str):
+		# For each plane, render all relevant images into a complete plane
+		if isinstance(targetPlane, MapMosaic):
+			# MapMosaics are the OOP structure which have render methods
+			targetPlane.render()
+			image = targetPlane.getImage()
+		elif isinstance(targetPlane, str):
+			# Assume a str input is a filepath to load
+			image = pv.Image.new_from_file(targetPlane)
+		return image
+	
+	def compositeImages(self, image: pv.Image, baseImage: pv.Image):
+		# Create the composite images for ecah plane, where lower planes
+		# are stacked underneath upper planes
+		# The lowest plane is the base image for stacking operations
+		# For planes above 0, the finalized plane image will be a composite
+		# Create the stacked underlay by masking the top level and pasting
+		# mask = targetPlane.imageContainer.getMask()
+		color = CONFIG.composite.transparencyColor
+		tolerance = CONFIG.composite.transparencyTolerance
+		mask = (abs(image - color) > tolerance).bandor()
+		baseImage = mask.ifthenelse(image, baseImage)
+		styledPlane = self.stylePlane(baseImage)
+		compositeImage = mask.ifthenelse(image, styledPlane)
+		return baseImage, compositeImage
+
+	def rescaleImages(self, image: pv.Image, zoomLevel, lowerX, lowerZ):
+		# Rescale the plane images
+		baselineZoom = CONFIG.zoom.baselineZoomLevel
+
+		# There is no need to rescale the baseline zoom image
+		if zoomLevel == baselineZoom:
+			return image
+		
+		# Calculate scale factor for this zoom level
+		scaleFactor = 2.0 ** zoomLevel / 2.0 ** baselineZoom
+		zoomedImage = self.resizeImage(image, zoomLevel, scaleFactor)
+
+		# At each zoom level lower than baseline, the image need aligning
+		if zoomLevel < CONFIG.zoom.baselineZoomLevel:
+			# Pad the image to the lnearest ower left point via integer division
+			zoomedImage = self.padLeft(zoomedImage, lowerX, scaleFactor)
+			zoomedImage = self.padDown(zoomedImage, lowerZ, scaleFactor)
+
+			# Grow the image up and right until it aligns with grid
+			zoomedImage = self.padRight(zoomedImage)
+			zoomedImage = self.padUp(zoomedImage)
+		return zoomedImage
 
 	def resizeImage(self, image, zoomLevel, scaleFactor):
 		# Select the kernel for this zoom level (zooming in uses NN)
@@ -318,7 +371,7 @@ class MapBuilder():
 		zoomedImage = image.resize(scaleFactor, kernel=kernelStyle)
 		return zoomedImage
 
-	def tileImage(self, image, planeNum, zoomLevel):
+	def tileImage(self, image: pv.Image, planeNum, zoomLevel):
 		dzPath = "./temp"
 		outPath = os.path.join(dzPath, f"plane_{planeNum}/{zoomLevel}")
 		backgroundColor = CONFIG.composite.transparencyColor
@@ -489,11 +542,8 @@ class MapBuilder():
 					# Determine the path of this tile
 					imageName = f"{plane}_{tile[0]}_{tile[1]}.png"
 					p = os.path.join(tileImagePath, str(zoomLevel), imageName)
-					# Insert icons to the tile's image
-					image = self.insertIcons(p, tile[0], tile[1], 
-					   							 icons, zoomLevel)
-					# Save the resulting image to the directory
-					image.write_to_file(p)					
+					# Insert icons to the tile's image and save
+					self.insertIcons(p, tile[0], tile[1], icons, zoomLevel)				
 
 	def insertIcons(self, path, x, z, iconList: list[MapIcon], zoomLevel):
 		# Draw icons onto the tile image
@@ -501,17 +551,29 @@ class MapBuilder():
 		# a mask to paste the resulting image overtop the existing image
 		iconLayer = self.createIconLayer(x, z, iconList, zoomLevel)
 		
+		# To replace the base image with the icon-implanted image, the old file
+		# must be renamed, loaded, then deleted. The new image will be written
+		# to the same namespace the old file. This is necessary because pyvips
+		# needs the source image to remain on disk during its execution.
+		basePath = os.path.dirname(path)
+		swapperPath = os.path.basename(path).split(".")[0] + "-icon.png"
+		randPath = os.path.join(basePath, swapperPath)
 		# Mask the icon layer overtop the tile image
 		layerMask = (iconLayer[3] == 255)
 		if os.path.exists(path):
-			# If the image exists already, load it
-			tileImage = pv.Image.new_from_file(path)
+			# If the image exists already, load it after changing its name
+			os.rename(path, randPath)
+			tileImage = pv.Image.new_from_file(randPath)
 		else:
 			# If the image does not exist, create a new blank image
 			tileImage = pv.Image.black(256, 256, bands=3)
 			tileImage = tileImage.copy(interpretation="srgb")
 		outImage = layerMask.ifthenelse(iconLayer[0:3], tileImage) # drop alpha
-		return outImage
+		# Save the resulting image to the directory
+		outImage.write_to_file(path)
+		# Remove the temporary file
+		if os.path.exists(randPath):
+			os.remove(randPath)
 
 	def createIconLayer(self, x, z, iconList: list[MapIcon], zoomLevel):
 		iconLayer = pv.Image.black(256, 256, bands=4).copy(interpretation="srgb")
@@ -690,19 +752,31 @@ class MapIconManager:
 
 def buildMapID(mapID, basePath, squareDefsPath, zoneDefsPath,
 			   iconManager: MapIconManager):
+	print(f"BUILDING {mapID}")
+	mapIDtime = time.time()
 	# Load definitions that create the mapID
-	squareDefs = SquareDefinition.squareDefsFromJSON(squareDefsPath, basePath)
-	zoneDefs = ZoneDefinition.zoneDefsFromJSON(zoneDefsPath, basePath)
+	if mapID == -1:
+		squareDefs = squareDefsPath
+		zoneDefs = zoneDefsPath
+	else:
+		squareDefs = SquareDefinition.squareDefsFromJSON(squareDefsPath, basePath)
+		zoneDefs = ZoneDefinition.zoneDefsFromJSON(zoneDefsPath, basePath)
 	defsManager = MapDefsManager(squareDefs, zoneDefs)
 
 	# Build the mapID
+	renderTime = time.time()
 	mapBuilder = MapBuilder(defsManager, mapID)
-	mapBuilder.renderImages(basePath)
+	mapBuilder.createMapTiles(basePath)
+	print(f"\tRendering Tiles took {time.time()-renderTime:.2f}")
 
 	# Load icon definitions relevant to this mapID
+	iconTime = time.time()
 	iconList = iconManager.getIconsInID(squareDefs, zoneDefs, mapBuilder)
 	mapIDPath = os.path.join(basePath, CONFIG.icon.mapIDDirectory, str(mapID))
 	mapBuilder.renderIcons(mapIDPath, iconList)
+	print(f"\tInserting Icons took {time.time()-iconTime:.2f}")
+
+	print(f"GENERATING {mapID} TOOK {time.time()-mapIDtime:.2f}")
 
 
 def actionRoutine(basePath):
@@ -737,21 +811,25 @@ def actionRoutine(basePath):
 	iconDefs = IconDefinition.iconDefsFromJSON(iconDefsPath)
 	iconManager = MapIconManager(iconDefs, basePath)
 
-	# Build the mapID
-	# for mapID in range(defsCount):
-	# 	prevTime = time.time()
-	# 	print(f"MapID: {mapID}")
-	# 	squareDefPath = os.path.join(squareDefsPath, f"mapSquareDefinitions_{mapID}.json")
-	# 	zoneDefPath = os.path.join(zoneDefsPath, f"zoneDefinitions_{mapID}.json")
-	# 	buildMapID(mapID, basePath, squareDefPath, zoneDefPath, iconDefsPath)
-	# 	print(f"\tTime: {time.time()-prevTime}")
+	# Building the debug (-1) mapID (this has all tiles)
+	# This is created using spoofed definitions that render in-place
+	# Therefore each spoof definition is made by iterating the square ranges
+	debugSquareDefs = SquareDefinition.spoofAllSquareDefs(basePath)
+	debugZoneDefs = list() # There are no zone definitions for this
+	buildMapID(-1, basePath, debugSquareDefs, debugZoneDefs, iconManager)
 
-	mapID = 4
-	squareDefsPath = os.path.join(squareDefsPath, f"mapSquareDefinitions_{mapID}.json")
-	zoneDefsPath = os.path.join(zoneDefsPath, f"zoneDefinitions_{mapID}.json")
-	buildMapID(mapID, basePath, squareDefsPath, zoneDefsPath, iconManager)
+	# Build the mapID
+	for mapID in range(defsCount):
+		squareDefPath = os.path.join(squareDefsPath, f"mapSquareDefinitions_{mapID}.json")
+		zoneDefPath = os.path.join(zoneDefsPath, f"zoneDefinitions_{mapID}.json")
+		buildMapID(mapID, basePath, squareDefPath, zoneDefPath, iconManager)
+
+	# mapID = 4
+	# squareDefsPath = os.path.join(squareDefsPath, f"mapSquareDefinitions_{mapID}.json")
+	# zoneDefsPath = os.path.join(zoneDefsPath, f"zoneDefinitions_{mapID}.json")
+	# buildMapID(mapID, basePath, squareDefsPath, zoneDefsPath, iconManager)
 
 if __name__ == "__main__":
 	startTime = time.time()
 	actionRoutine("osrs-wiki-maps/out/mapgen/versions/2024-05-29_a")
-	print(f"MapID generation took {time.time()-startTime}s")
+	print(f"MapID generation took {time.time()-startTime:.2f}s")
