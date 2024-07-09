@@ -31,7 +31,7 @@ class SquareDefinition:
 			jsonData = json.load(jsonFile)
 
 		# Return a list of all the new ZoneDefinitions
-		zoneList = list()
+		squareList = list()
 		for data in jsonData:
 			# Get definition data
 			minLevel = data.get("minLevel")
@@ -50,8 +50,33 @@ class SquareDefinition:
 							minLevel, levels,
 							fileID, basePath
 				 		)
-			zoneList.append(newSquare)
-		return zoneList
+			squareList.append(newSquare)
+		return squareList
+	
+	@classmethod
+	def spoofAllSquareDefs(cls, basePath):
+		# Creates all definitions spanning the plane, where source = display
+		squareList = list()
+		# Always assumes all 4 levels are used
+		# GroupID matches the level
+		minLevel = 0
+		levels = 4
+		fileID = None
+		groupID = 0
+		for x in range(GCS.minX_square, GCS.maxX_square+1):
+			for z in range(GCS.minY_square, GCS.maxY_sqaure+1):
+				sourceSquareX = x
+				sourceSquareZ = z
+				displaySquareX = x
+				displaySquareZ = z
+				newSquare = cls(groupID,
+								sourceSquareX, sourceSquareZ, 
+								displaySquareX, displaySquareZ,
+								minLevel, levels,
+								fileID, basePath
+				 			)
+				squareList.append(newSquare)
+		return squareList
 	
 	def getSourceSquare(self) -> tuple:
 		return (self.sourceSquareX, self.sourceSquareZ)
