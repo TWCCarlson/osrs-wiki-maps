@@ -1,15 +1,12 @@
-import glob
-from collections import defaultdict
-import time
-
 import os.path
 import cache
-import createCompositeImages
-import createZoomedPlanes
-import drawMapIcons
-import tileImages
 import restructureDirectory
-import insertIcons
+import buildMapIDs
+import sys
+import json
+import glob
+
+BASE_DIRECTORY = "osrs-wiki-maps/out/mapgen/versions"
 
 # runnerOS = system()
 # if runnerOS == "Windows":
@@ -20,82 +17,75 @@ vipsbin = os.path.join(os.getcwd(), f"vipsbin/vips-dev-{LIBVIPS_VERSION}/bin")
 os.environ['PATH'] = os.pathsep.join((vipsbin, os.environ['PATH']))
 import pyvips as pv
 
-# fetchCache()
-# fetchXTEA()
-# dumpMapData()
-# createCompositePlanes()
-# rescalePlanes()
-# generateBaseTiles()
-# reshapeDirectory()
-# for mapID in mapIDs
-#     buildMapID()
-#     drawIcons()
-#     sliceImage()
-#     reshapeDirectory()
+def getCache(version=None):
+	# Fetch the latest, or the version supplied as an argument, game cache
+	cache.download(f"./osrs-wiki-maps/out/mapgen/versions", version)
 
+def createBaseTiles(version):
+	# Slice the cache dump result to produce the base tiles for game maps
+	with open("./scripts/mapBuilderConfig.json") as configFile:
+		configData = json.load(configFile)
+		backgroundColor = configData["TILER_OPTS"]["backgroundColor"]
+		backgroundThreshold = configData["TILER_OPTS"]["backgroundThreshold"]
+	with open("./osrs-wiki-maps/coordinateData.json") as coordFile:
+		coordData = json.load(coordFile)
+
+	# Find the base plane images
+	baseDirectory = os.path.join(BASE_DIRECTORY, version)
+	imageBasePath = os.path.join(baseDirectory, "fullplanes/base")
+	imageFilePaths = glob.glob(os.path.join(imageBasePath, "**.*png"))
+	dzSaveOutPath = os.path.join(baseDirectory, "tiles/dzSave")
+
+	# Identify the bottom left coordinates
+	LOWER_SQUARE_X = coordData["minSquareX"]
+
+	# Slice each image
+	for planeImagePath in imageFilePaths:
+		# Identify the plane
+		fileName = os.path.basename(planeImagePath)
+		_, planeNum = os.path.splitext(fileName)[0].split("_")
+
+		# Load the image and slice
+		planeImage = pv.Image.new_from_file(planeImagePath)
+		planeImage.dzsave(os.path.join(dzSaveOutPath, f"plane_{planeNum}/2"),
+						  tile_size= 256,
+						  suffix= '.png[Q=100]',
+						  depth= 'one',
+						  overlap= 0,
+						  layout='google',
+						  region_shrink='nearest',
+						  background=backgroundColor,
+						  skip_blanks=backgroundThreshold)
+		
+	# Restructure the output of the slicer to comport with Jagex coordinates
+	targetDirectory = os.path.join(baseDirectory, "tiles/base")
+	planeTileDirectories = glob.glob(os.path.join(dzSaveOutPath, "*/"))
+	for directory in planeTileDirectories:
+		restructureDirectory.restructureDirectory(directory, 
+												  targetDirectory,
+											  	  coordData, 2, 
+												  xOffset=LOWER_SQUARE_X)
+	restructureDirectory.removeSubdirectories(dzSaveOutPath)
+	os.rmdir(dzSaveOutPath)
+
+def buildAllMapIDs(version):
+	baseDirectory = os.path.join(BASE_DIRECTORY, version)
+	buildMapIDs.actionRoutine(baseDirectory)
+	pass
 
 if __name__ == "__main__":
 	"""
-		Build ALL maps used in the wiki from scratch
+	Main file containing the top-level functions to be called for generating
+	map tiles for the OSRS wiki. The intended call order, automatable via
+	GitHub Actions, is:
+
+	1) getCache(optional version arg) -> working directory path
+	2) Dump from the game cache(workingPath)
+	3) createBaseTiles(workingPath)
+	4) buildMapIDs(workingPath)
 	"""
-	startTime = time.time()
-	# 1. Retrieve the latest cache files and XTEA keys
-	# outputDir = cache.download(f"./osrs-wiki-maps/out/mapgen/versions")
-	outputDir = os.path.join(f"./osrs-wiki-maps/out/mapgen/versions", "2024-05-29_a")
-
-	# 2. Dump map data using RuneLite
-	# Call the java program to dump map data
-	# When this is working, the version of the cache and xteas will need to be passed in alongside the directory
-	# It should build a directory inside /mapgen/versions/ called fullplanes and dump the images there
-	# It should also return that directory
-	# planeImageDir = somefunction()
-	planeImageDir = os.path.join(outputDir, "fullplanes/base")
-
-	# Record image paths by plane
-	fileType = "/*.png"
-	planeImagePaths = defaultdict(str)
-	for imagePath in (os.path.normpath(path) for path in glob.glob(f"{planeImageDir}{fileType}")):
-		imageName = os.path.splitext(os.path.basename(imagePath))[0]
-		planeNum = int(imageName.split("_")[-1])
-		planeImagePaths[planeNum] = imagePath
-
-	print(planeImagePaths)
-	input("Press enter")
-
-	# The following steps are done plane-by-plane
-	for planeNum, planePath in planeImagePaths.items():
-		# 3. Create the composite image of the plane
-		# print(f"COMPOSITING {planeNum}")
-		planeImage = pv.Image.new_from_file(planePath)
-		# planeImage = createCompositeImages.createComposites(planeNum, planeImagePaths)
-		# outPath = f"./osrs-wiki-maps/out/mapgen/versions/2024-05-29_a/fullplanes/composites/"
-		# if not os.path.exists(outPath):
-		# 	os.makedirs(outPath)
-		# planeImage.write_to_file(os.path.join(outPath, f"plane_{planeNum}.png"))
-
-		# 4. Rescale the plane and save
-		print(f"RESCALING {planeNum}")
-		createZoomedPlanes.rescalePlane(planeImage, planeNum, outputDir)
-	print(f"Vips operations took: {time.time()-startTime}")
-
-	# for planeNum, planePath in planeImagePaths.items():
-		# planeImage = pv.Image.new_from_file(planePath)
-		# createZoomedPlanes.rescalePlane(planeImage, planeNum, outputDir)
-
-	# 5. Slice the rendered planes and rescale
-	sliceTime = time.time()
-	tileImages.actionRoutine(outputDir)
-	print(f"Slicing took: {time.time()-sliceTime}")
-
-	# 6. Restructure the directory to match what's expected
-	dirTime = time.time()
-	restructureDirectory.actionRoutine(outputDir, "-1")
-	print(f"Directory fix took: {time.time()-dirTime}")
-
-	# Draw icons onto tiles
-	# iconTime = time.time()
-	# insertIcons.actionRoutine(outputDir)
-	# print(f"Icon insertion took: {time.time()-iconTime}")
-
-	# Done
-	print(f"Finished in {time.time()-startTime} seconds")
+	args = sys.argv
+	# args[0] = current file
+	# args[1] = function name
+	# args[2:] = function args : (*unpacked)
+	globals()[args[1]](*args[2:])

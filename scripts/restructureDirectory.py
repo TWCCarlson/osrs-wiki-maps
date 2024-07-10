@@ -45,7 +45,8 @@ def restructureDirectories(dzPath, outPath, coordinateData, baselineZoomLevel, m
 	removeSubdirectories(dzPath)
 	os.rmdir(dzPath)
 
-def restructureDirectory(directory, outPath, coordinateData, baselineZoomLevel):
+def restructureDirectory(directory, outPath, coordinateData, baselineZoomLevel,
+						 xOffset=0):
 	# Generate an iterable of all the files in this pyramid directory and subdirectories
 	pyramidSearchPath = os.path.join(directory, "**/*.png")
 	pyramidFiles = glob.iglob(pyramidSearchPath, recursive=True)
@@ -55,16 +56,17 @@ def restructureDirectory(directory, outPath, coordinateData, baselineZoomLevel):
 		# Google structure inserts images used to compare and eliminate empty tiles, ignore
 		if os.path.split(imagePath)[-1] == "blank.png":
 			continue
-		renameFile(imagePath, outPath, coordinateData, baselineZoomLevel)
+		renameFile(imagePath, outPath, coordinateData, baselineZoomLevel, xOffset)
 
 
-def renameFile(imagePath, outPath, coordinateData, baselineZoomLevel):
+def renameFile(imagePath, outPath, coordinateData, baselineZoomLevel,
+			   xOffset=0):
 	# Retrieve the tile's location data
 	splitPath = os.path.normpath(imagePath).split(os.sep)[-5:]
 	planeNum = int(splitPath[0].split("_")[-1])
 	zoom = int(splitPath[1])
 	y = int(splitPath[-2])
-	x = int(splitPath[-1].split(".")[0])
+	x = int(splitPath[-1].split(".")[0]) + xOffset
 	# Transform to (0,0) bottom left coordinates for squares
 	# X coordinate is already matching
 	# Recall that the top and right bounds are integer tile based
