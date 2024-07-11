@@ -550,7 +550,7 @@ def actionRoutine(basePath):
 		zoneDefPath = os.path.join(zoneDefsPath, f"zoneDefinitions_{mapID}.json")
 		buildMapID(mapID, basePath, squareDefPath, zoneDefPath, iconManager)
 
-	# mapID = 4
+	# mapID = 7
 	# squareDefsPath = os.path.join(squareDefsPath, f"mapSquareDefinitions_{mapID}.json")
 	# zoneDefsPath = os.path.join(zoneDefsPath, f"zoneDefinitions_{mapID}.json")
 	# buildMapID(mapID, basePath, squareDefsPath, zoneDefsPath, iconManager)

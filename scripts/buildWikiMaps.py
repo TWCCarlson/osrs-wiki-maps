@@ -71,8 +71,7 @@ def createBaseTiles(version):
 def buildAllMapIDs(version):
 	baseDirectory = os.path.join(BASE_DIRECTORY, version)
 	buildMapIDs.actionRoutine(baseDirectory)
-	pass
-
+	
 if __name__ == "__main__":
 	"""
 	Main file containing the top-level functions to be called for generating
