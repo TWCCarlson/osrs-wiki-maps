@@ -1,8 +1,9 @@
-from dataclasses import dataclass, field
-import json
 from config import MapBuilderConfig, GlobalCoordinateDefinition
 CONFIG = MapBuilderConfig()
 GCS = GlobalCoordinateDefinition()
+
+from dataclasses import dataclass, field
+import json
 
 
 @dataclass(order=True)

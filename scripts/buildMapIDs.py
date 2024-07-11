@@ -9,11 +9,11 @@ from definitions import (SquareDefinition, ZoneDefinition, IconDefinition,
 from images import MapImage, PlaneImage, SquareImage, ZoneImage, IconImage
 from mapelements import (MapPlane, MapSquare, MapZone, MapIcon, MapMosaic,
 						 MapSquareOfZones)
+from managers import MapDefsManager, MapIconManager
 
 from collections import defaultdict
 import math
 import pprint
-from copy import deepcopy
 import os
 import time
 import json
@@ -31,140 +31,6 @@ os.environ['PATH'] = os.pathsep.join((vipsbin, os.environ['PATH']))
 # os.environ["VIPS_CONCURRENCY"] = "1"
 # logging.basicConfig(level = logging.DEBUG)
 import pyvips as pv
-
-
-# Generic image processing
-def brightnessAndContrast(image):
-	brightnessFrac = CONFIG.composite.brightnessFraction
-	contrastFrac = CONFIG.composite.contrastFraction
-	if 0 <= brightnessFrac <= 1.0 and 0 <= contrastFrac <= 1.0:
-		# This is done via a linear equation out = contrast * in + brightness
-		brightnessValue = ((brightnessFrac * 255) - 255) / 2
-		image = contrastFrac * (image - 127) + (127 + brightnessValue)
-		return image
-	elif brightnessFrac > 1 or brightnessFrac < 0:
-		raise ValueError("Brightness adjustment fraction not between 0 and 1")
-	elif contrastFrac > 1 or contrastFrac < 0:
-		raise ValueError("Contrast adjustment fraction not between 0 and 1")
-
-def grayscale(image):
-	grayscaleFrac = CONFIG.composite.grayscaleFraction
-	if 0 <= grayscaleFrac <= 1:
-		# Convert to .hsv, adjust the saturation band, and convert back to srgb
-		image = image.colourspace("hsv")
-		image = image * [1, (1-grayscaleFrac), 1]
-		image = image.colourspace("srgb")
-		return image
-	else:
-		raise ValueError("Grayscale adjustment fraction not between 0 and 1")
-
-def blur(image):
-	# Preview the radius of this blur operation using:
-	# print(pv.Image.gaussmat(sigma, min_ampl, precision="float", separable=True).rot90().numpy())
-	# pyvips implementation skips the first term of the Gaussian: https://www.libvips.org/API/8.9/libvips-create.html#vips-gaussmat
-	blurRadius = CONFIG.composite.blurRadius
-	if blurRadius > 0:
-		# This approach calculates the amplitude cutoff for passed radius
-		sigma = 1
-		n = blurRadius + 1
-		nthGaussTerm = math.e ** (-(n**2)/(2 * (sigma**2)))
-		return image.gaussblur(sigma, min_ampl=nthGaussTerm, precision="float")
-
-
-class MapDefsManager():
-	"""
-	Stores the square and zone definitions
-	Also maps source squares and zones to display squares and zones
-	"""
-	# Holds a map of source->display [plane][square][zone]
-	def __init__(self, squareDefs: list[SquareDefinition], 
-			  	 zoneDefs: list[SquareDefinition]):
-		self.squareDefs = squareDefs
-		self.zoneDefs = zoneDefs
-
-		# Default map dimensions
-		self.lowerSquareX = math.inf
-		self.upperSquareX = -math.inf
-		self.lowerSquareZ = math.inf
-		self.upperSquareZ = -math.inf
-		self.lowerPlane = math.inf
-		self.upperPlane = -math.inf
-
-		# Post-init tasks
-		self._rangeImage()
-		self._sortDefinitions()
-		self._buildReferences(self.squareDefs, self.zoneDefs)
-	
-	def _rangeImage(self) -> None:
-		# Calculate the dimensions of the output image in squares
-		# Check square definitions
-		for sd in self.squareDefs:
-			self.lowerSquareX = min(self.lowerSquareX, sd.displaySquareX)
-			self.upperSquareX = max(self.upperSquareX, sd.displaySquareX)
-			self.lowerSquareZ = min(self.lowerSquareZ, sd.displaySquareZ)
-			self.upperSquareZ = max(self.upperSquareZ, sd.displaySquareZ)
-			self.lowerPlane = min(self.lowerPlane, sd.lowerPlane)
-			self.upperPlane = max(self.upperPlane, sd.upperPlane)
-		# Check zone definitions
-		for zd in self.zoneDefs:
-			self.lowerSquareX = min(self.lowerSquareX, zd.displaySquareX)
-			self.upperSquareX = max(self.upperSquareX, zd.displaySquareX)
-			self.lowerSquareZ = min(self.lowerSquareZ, zd.displaySquareZ)
-			self.upperSquareZ = max(self.upperSquareZ, zd.displaySquareZ)
-			self.lowerPlane = min(self.lowerPlane, zd.lowerPlane)
-			self.upperPlane = max(self.upperPlane, zd.upperPlane)
-	
-	def _sortDefinitions(self) -> None:
-		self.squareDefs.sort()
-		self.zoneDefs.sort()
-
-	def _buildReferences(self, squareDefs: list[SquareDefinition],
-						 zoneDefs: list[ZoneDefinition]) -> None:
-		# Constructs a dictionary mapping tuple source coords to display coords
-		self.sourceToDisplay = dict()
-		for plane in range(self.lowerPlane, self.upperPlane+1):
-			self.sourceToDisplay[plane] = dict()
-
-		# Square definitions don't change zone locations, preallocate
-		unchangedSquare = dict(displaySquare={}, sourceZone={})
-		for i in range(0, GCS.squareZoneLength):
-			for j in range(0, GCS.squareZoneLength):
-				unchangedSquare['sourceZone'][(i, j)] = (i, j)
-
-		# Load square definition mappings
-		for sd in squareDefs:
-			for plane in range(sd.lowerPlane, sd.upperPlane+1):
-				source = sd.getSourceSquare()
-				display = sd.getDisplaySquare()
-				# Zones are unchanged, but need to be mapped
-				self.sourceToDisplay[plane][source] = deepcopy(unchangedSquare)
-				parentSquare = self.sourceToDisplay[plane][source]
-				parentSquare['displaySquare'] = display
-
-		# Load zone definition mappings
-		for zd in zoneDefs:
-			for plane in range(zd.lowerPlane, zd.upperPlane+1):
-				sourceSquare = zd.getSourceSquare()
-				sourceZone = zd.getSourceZone()
-				displaySquare = zd.getDisplaySquare()
-				displayZone = zd.getDisplayZone()
-				planeDict = self.sourceToDisplay[plane]
-				if sourceSquare not in self.sourceToDisplay[plane]:
-					planeDict[sourceSquare] = dict(displaySquare={}, sourceZone={})
-				parentSquare = self.sourceToDisplay[plane][sourceSquare]
-				parentSquare['displaySquare'] = displaySquare
-				parentSquare['sourceZone'][sourceZone] = displayZone
-
-	def getDefsBBox(self):
-		out = {
-			"lowerX": self.lowerSquareX,
-			"upperX": self.upperSquareX,
-			"lowerZ": self.lowerSquareZ,
-			"upperZ": self.upperSquareZ,
-			"lowerPlane": self.lowerPlane,
-			"upperPlane": self.upperPlane
-		}
-		return out
 
 
 class MapBuilder():
@@ -200,24 +66,24 @@ class MapBuilder():
 											 planeNum)
 			
 		# Iterate the definitions, loading them into the plane
-		self._loadDefinitions(defsStore.squareDefs, defsStore.zoneDefs)
+		self.loadDefinitions(defsStore.squareDefs, defsStore.zoneDefs)
 
 
-	def _loadDefinitions(self, squareDefs: list[SquareDefinition],
+	def loadDefinitions(self, squareDefs: list[SquareDefinition],
 					 	zoneDefs: list[ZoneDefinition]):
 		for sd in squareDefs:
 			# Squares get defined for each source plane in the level range
 			lowerPlane, upperPlane = sd.getPlaneRange()
 			for planeNum in range(lowerPlane, upperPlane+1):
-				self._loadSquareDefinition(sd, planeNum)
+				self.loadSquareDefinition(sd, planeNum)
 
 		for zd in zoneDefs:
 			# Zones get defined for each source plane in the level range
 			lowerPlane, upperPlane = zd.getPlaneRange()
 			for planeNum in range(lowerPlane, upperPlane+1):
-				self._loadZoneDefinition(zd, planeNum)
+				self.loadZoneDefinition(zd, planeNum)
 
-	def _loadSquareDefinition(self, sqDef: SquareDefinition, sourcePlane):
+	def loadSquareDefinition(self, sqDef: SquareDefinition, sourcePlane):
 		newSquare = MapSquare(sqDef, sourcePlane)
 		for planeNum in range(self.lowerPlane, self.upperPlane+1):
 			x, y = newSquare.definition.getDisplaySquare()
@@ -233,7 +99,7 @@ class MapBuilder():
 			# raise IndexError("Cell is occupied on all allowed planes")
 			pass
 		
-	def _loadZoneDefinition(self, zDef: ZoneDefinition, sourcePlane):
+	def loadZoneDefinition(self, zDef: ZoneDefinition, sourcePlane):
 		newZone = MapZone(zDef, sourcePlane)
 		newZoneDef = newZone.definition # type: ZoneDefinition
 		# Iterate the display planes
@@ -391,7 +257,7 @@ class MapBuilder():
 					 skip_blanks=backgroundTolerance)
 		
 	def restructureDirectory(self, planeNum, zoomLevel, basePath):
-		# It should match Jagex/Leaflet coordinates
+		# File names should match Jagex/Leaflet coordinates
 		# Generate an iterable of all the files in the directory
 		dirSpec = f"plane_{planeNum}/{zoomLevel}/0"
 		planeDirectory = os.path.join("./temp", dirSpec)
@@ -459,9 +325,9 @@ class MapBuilder():
 
 	def stylePlane(self, image):
 		# Plane styling pipeline
-		image = brightnessAndContrast(image)
-		image = grayscale(image)
-		image = blur(image)
+		image = MapImage.brightnessAndContrast(image)
+		image = MapImage.grayscale(image)
+		image = MapImage.blur(image)
 		return image
 
 	def renameFile(self, filePath, zoom, defsDimensions, basePath):
@@ -580,9 +446,9 @@ class MapBuilder():
 			os.remove(randPath)
 
 	def createIconLayer(self, x, z, iconList: list[MapIcon], zoomLevel):
+		# Creates an overlay image. All icons in the list are drawn onto it
 		iconLayer = pv.Image.black(256, 256, bands=4).copy(interpretation="srgb")
 		for icon in iconList:
-			# print(f"DRAWING {icon}")
 			# Fetch image, icon owner tile, and location in owner tile
 			iconImage = icon.imageContainer.image
 			iconX_tile, iconZ_tile = icon.tilePosition[zoomLevel]
@@ -614,144 +480,6 @@ class MapBuilder():
 			mask = (temp[3] == 255)
 			iconLayer = mask.ifthenelse(temp, iconLayer)
 		return iconLayer
-
-class MapIconManager:
-	# Holds definitions for icons
-	# Holds a square-coordinate indexable map, a list of all icons in the square
-	def __init__(self, iconDefs: list[IconDefinition], basePath) -> None:
-		# Sort the icon defs and save
-		self.iconDefs = iconDefs
-
-		# Manager loads its own icons for reference
-		self.basePath = basePath
-		
-		# Filter out icons not in the definitions
-		self._sortDefinitions()
-		self._loadIconImages()
-		self._processIconList()
-
-	def _sortDefinitions(self):
-		self.iconDefs.sort()
-
-	def _loadIconImages(self):
-		# Load all the icon images into referenceable memory
-		self.iconIDtoImage = dict()
-		iconImageDir = os.path.join(self.basePath, CONFIG.icon.iconPath)
-		iconImagePaths = glob.iglob(os.path.join(iconImageDir, "*.png"))
-		for iconImagePath in iconImagePaths:
-			iconID = int(os.path.basename(iconImagePath).split(".")[0])
-			iconImageContainer = IconImage(iconImagePath)
-			self.iconIDtoImage[iconID] = iconImageContainer
-
-	def _processIconList(self):
-		# Store icons to be accessed via owner coordinates
-		self.iconStore = defaultdict(lambda: # [plane]
-						 defaultdict(lambda: # [square]
-						 defaultdict(list))) # [zone]
-		for iconDef in self.iconDefs:
-			plane = iconDef.plane
-			sqX, sqZ = iconDef.getOwnerSquare()
-			znX, znZ = iconDef.getOwnerZone()
-			self.iconStore[plane][(sqX, sqZ)][(znX, znZ)].append(iconDef)
-
-	def getIconsInID(self, squareDefs: list[SquareDefinition], 
-				  	 zoneDefs: list[ZoneDefinition],
-					 mapBuilder: MapBuilder):
-		# Return dict with plane numbers as keys, mapped to icons in plane
-		renderedIcons = defaultdict(list)
-
-		# Using the structure of the ID determined by the builder, find
-		# all icons that should be represented in each defined map element
-		for plane in range(mapBuilder.lowerPlane, mapBuilder.upperPlane+1):
-			# For each plane, evaluate the elements in the plane
-			targetPlane = mapBuilder.planes[plane] # type: MapPlane
-			for square, element in targetPlane.mosaic.items():
-				if isinstance(element, MapSquareOfZones):
-					# Another layer of mosaic needs to be parsed
-					for zone, subelem in element.mosaic.items():
-						newIconList = self.getIconsInCell(plane, subelem)
-						renderedIcons[plane].extend(newIconList)
-				elif isinstance(element, MapSquare):
-					newIconList = self.getIconsInCell(plane, element)
-					renderedIcons[plane].extend(newIconList)
-		return renderedIcons
-
-	def getIconsInCell(self, plane, cellContent: MapSquare | MapSquareOfZones):
-		cellDefinition = cellContent.definition
-		# If there is no definition, we do not render anything
-		if not cellDefinition:
-			return defaultdict(list)
-		icons = defaultdict(list)
-		# Cover the whole plane range, finding all icons from the same region
-		lowerPlane, upperPlane = cellDefinition.getPlaneRange()
-		for defPlane in range(0, 3+1):
-			sourceCoords = cellDefinition.getFullSource()
-			iconsInCell = self.getIconsInDef(defPlane, *sourceCoords)
-			for icon in iconsInCell:
-				newIcon = self.createMapIcon(defPlane, icon, cellDefinition)
-				icons[defPlane].append(newIcon)
-		# Only return the list of icons that are rendered in this cell's plane
-		outList = list()
-		for planeNum, iconList in icons.items():
-			if planeNum in CONFIG.icon.planeHasIconsFromPlanes[plane]:
-				outList.extend(iconList)
-		return outList
-
-	def getIconsInDef(self, plane, squareX, squareZ, 
-				   	  zoneX=None, zoneZ=None):
-		# Search the iconStore for icons that fall within the square and zone
-		# Not supplying zone coordinates means the whole square is checked
-		iconList = list()
-
-		# Access the datastructure for the specified square
-		squareData = self.iconStore[plane][(squareX, squareZ)]
-		if zoneX is None and zoneZ is None:
-			# If no zone was specified, then flatten the data
-			sqL = [icon for icons in squareData.values() for icon in icons]
-			iconList.extend(sqL)
-		else:
-			# Otherwise, only append the icons in the zone
-			iconList.extend(squareData[(zoneX, zoneZ)])
-		return iconList
-
-	def createMapIcon(self, planeNum, iconDefinition: IconDefinition, 
-				   	  mapDefinition: SquareDefinition | ZoneDefinition):
-		# Create the map element of the icon, with image and icondef loaded
-		# Use the map definition to set the display coordinates
-
-		# Create the MapIcon instance, based on the icon definition
-		newIcon = MapIcon(iconDefinition, planeNum)
-
-		# Set the icon's image, which was pre-loaded earlier
-		spriteID = iconDefinition.spriteID
-		iconSprite = self.iconIDtoImage[spriteID]
-		newIcon.setImage(iconSprite)
-
-		# Set the icon's display coordinates
-		# Need to determine how the icon is being moved by the definition
-		# This must be done relative to the lower left of the square,
-		# or zone, if it is mentioned in the definition
-		if isinstance(mapDefinition, ZoneDefinition):
-			# For zones, find the zone-relative position of the icon
-			znRelX, znRelZ = iconDefinition.getTileRelativeToOwnerZone()
-			# Then find the base point of the display zone
-			dsqX, dsqZ = mapDefinition.getDisplaySquare()
-			dznX, dznZ = mapDefinition.getDisplayZone()
-			baseX = dsqX * GCS.squareTileLength + dznX * GCS.zoneTileLength
-			baseZ = dsqZ * GCS.squareTileLength + dznZ * GCS.zoneTileLength
-			# Final location is the relative position added to the base point
-			dX_tile = baseX + znRelX
-			dZ_tile = baseZ + znRelZ
-		else:
-			# Squares are simpler, just get the square-relative coordinates
-			sqRelX, sqRelZ = iconDefinition.getTileRelativeToOwnerSquare()
-			# And add them to the base point of the display square
-			dsqX, dsqZ = mapDefinition.getDisplaySquare()
-			dX_tile = dsqX * GCS.squareTileLength + sqRelX
-			dZ_tile = dsqZ * GCS.squareTileLength + sqRelZ
-		# The baseline display coordinates can now be set
-		newIcon.setDisplayCoordinates(dX_tile, dZ_tile)
-		return newIcon
 		
 
 def buildMapID(mapID, basePath, squareDefsPath, zoneDefsPath,
@@ -771,11 +499,11 @@ def buildMapID(mapID, basePath, squareDefsPath, zoneDefsPath,
 	renderTime = time.time()
 	mapBuilder = MapBuilder(defsManager, mapID)
 	mapBuilder.createMapTiles(basePath)
-	print(f"\tRendering Tiles took {time.time()-renderTime:.2f}")
+	print(f"\tRendering Tiles took {time.time()-renderTime:.3f}")
 
 	# Load icon definitions relevant to this mapID
 	iconTime = time.time()
-	iconList = iconManager.getIconsInID(squareDefs, zoneDefs, mapBuilder)
+	iconList = iconManager.getIconsInID(mapBuilder)
 	mapIDPath = os.path.join(basePath, CONFIG.icon.mapIDDirectory, str(mapID))
 	mapBuilder.renderIcons(mapIDPath, iconList)
 	print(f"\tInserting Icons took {time.time()-iconTime:.2f}")
@@ -791,7 +519,9 @@ def actionRoutine(basePath):
 	classes to store the data. Using that information, the tile images are
 	generated. Each generated image is then rescaled, styled, composited, 
 	and sliced per config file settings. The resulting image directory from a
-	dzsave operation is then restructured to match Jagex/Leaflet coordinates
+	dzsave operation is then restructured to match Jagex/Leaflet coordinates,
+	Finally, icon locations are calculated and their sprites are inserted to 
+	the correct image files.
 	"""
 	# Data paths
 	squareDefsPath = CONFIG.mapid.squareDefsPath

@@ -1,10 +1,11 @@
 from definitions import (SquareDefinition, ZoneDefinition, IconDefinition)
 from images import MapImage, PlaneImage, SquareImage, ZoneImage, IconImage
-import os
 from config import MapBuilderConfig, GlobalCoordinateDefinition
-from math import floor
 CONFIG = MapBuilderConfig()
 GCS = GlobalCoordinateDefinition()
+
+import os
+import math
 
 ### Pyvips import
 # Windows binaries are required: 
@@ -186,9 +187,9 @@ class MapIcon():
 	def setDisplayCoordinates(self, x, z):
 		self.displayX_tile = x
 		self.displayZ_tile = z
-		self._calculateRenderPosition(x, z)
+		self.calculateRenderPosition(x, z)
 
-	def _calculateRenderPosition(self, x_tile, z_tile):
+	def calculateRenderPosition(self, x_tile, z_tile):
 		# Calculates the tile and position in the tile the icon should be
 		# placed in at each relevant zoom level. Also determines if there is
 		# any overflowing of the icon image to be handled.
@@ -200,8 +201,8 @@ class MapIcon():
 		for zoomLevel in zoomLevelsWithIcons:
 			# Calculate the leaflet tile coordinates for this zoom level
 			scaleFactor = 2.0**zoomLevel/2.0**CONFIG.zoom.baselineZoomLevel
-			scaleTileX = floor((x_tile * scaleFactor) // GCS.squareTileLength)
-			scaleTileZ = floor((z_tile * scaleFactor) // GCS.squareTileLength)
+			scaleTileX = math.floor((x_tile * scaleFactor) // GCS.squareTileLength)
+			scaleTileZ = math.floor((z_tile * scaleFactor) // GCS.squareTileLength)
 			self.tilePosition[zoomLevel] = (scaleTileX, scaleTileZ)
 
 			# Calculate the relative position of the icon in the tile
@@ -240,7 +241,6 @@ class MapIcon():
 						 			  overflowDirection[1]+scaleTileZ))
 			# Store the overflow tiles into another dict
 			self.overflowsInto[zoomLevel] = overflowTiles
-
 
 	def __repr__(self) -> str:
 		repr = (f"MapIcon@{self.targetPlane}: {self.definition}")
