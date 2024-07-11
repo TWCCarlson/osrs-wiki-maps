@@ -471,7 +471,7 @@ class MapBuilder():
 				# while +ve z pixels indicate the bottom left
 				iconZ_px = z_px + (offsetZ*256) - math.ceil(iconImage.height/2)
 			# Insert the icon image
-			temp = temp.insert(iconImage, iconX_px, iconZ_px, expand=False)
+			temp = temp.insert(iconImage, iconX_px-1, iconZ_px, expand=False)
 			# Mask the temporary image overtop the base image
 			mask = (temp[3] == 255)
 			iconLayer = mask.ifthenelse(temp, iconLayer)
