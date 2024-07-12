@@ -6,6 +6,17 @@ from dataclasses import dataclass, field
 import json
 
 
+def loadMapDefinitions(mapID, mapDefs, basePath):
+	# Reads the map definitions and extracts the square and zone definitions
+	# for the supplied mapID, returning the list of definition objects
+	mapIDDefs = mapDefs[mapID]
+	squareDefsJSON = mapIDDefs.get("mapSquareDefinitions")
+	zoneDefsJSON = mapIDDefs.get("zoneDefintions")
+	squareDefs = SquareDefinition.squareDefsFromJSON(squareDefsJSON, basePath)
+	zoneDefs = ZoneDefinition.zoneDefsFromJSON(zoneDefsJSON, basePath)
+	return squareDefs, zoneDefs
+
+
 @dataclass(order=True)
 class SquareDefinition:
 	groupId: int
@@ -27,13 +38,14 @@ class SquareDefinition:
 		self.upperPlane = self.minLevel + self.levels - 1
 
 	@classmethod
-	def squareDefsFromJSON(cls, jsonFilePath, basePath):
-		with open(jsonFilePath) as jsonFile:
-			jsonData = json.load(jsonFile)
-
-		# Return a list of all the new ZoneDefinitions
+	def squareDefsFromJSON(cls, squareDefsList, basePath):
+		# Parse the passed list, generating square definition objects
 		squareList = list()
-		for data in jsonData:
+		# If there are no square definitions, skip 
+		if not squareDefsList:
+			return squareList
+		
+		for data in squareDefsList:
 			# Get definition data
 			minLevel = data.get("minLevel")
 			levels = data.get("levels")
@@ -109,13 +121,14 @@ class ZoneDefinition(SquareDefinition):
 	displayZoneZ: int = field(compare=False)
 
 	@classmethod
-	def zoneDefsFromJSON(cls, jsonFilePath, basePath):
-		with open(jsonFilePath) as jsonFile:
-			jsonData = json.load(jsonFile)
-
-		# Return a list of all the new ZoneDefinitions
+	def zoneDefsFromJSON(cls, zoneDefsList, basePath):
+		# Parse the passed list, generating zone definition objects
 		zoneList = list()
-		for data in jsonData:
+		# If there are no zones, skip
+		if not zoneDefsList:
+			return zoneList
+		
+		for data in zoneDefsList:
 			# Get definition data
 			sourceZoneX = data.get("sourceZoneX")
 			sourceZoneZ = data.get("sourceZoneZ")
