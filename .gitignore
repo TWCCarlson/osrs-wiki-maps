@@ -38,8 +38,8 @@ test/
 
 # profiling
 temp.dat
+vips-profile.txt
 
-
+# cache files
 *.pyc
 scripts/__pycache__/cache.cpython-312.pyc
-vips-profile.txt
