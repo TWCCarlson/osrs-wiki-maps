@@ -68,6 +68,7 @@
         "baseTilePath": "tiles/base/2",
         "mapIDoutPath": "tiles/rendered",
         "squareDefsPath": "worldMapCompositeDefinitions/squares",
-        "zoneDefsPath": "worldMapCompositeDefinitions/zones"
+        "zoneDefsPath": "worldMapCompositeDefinitions/zones",
+        "mapDefsPath": "wikiWorldMapDefinitions.json"
     }
 }

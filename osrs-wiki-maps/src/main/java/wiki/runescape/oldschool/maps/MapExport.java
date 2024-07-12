@@ -33,7 +33,11 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.PrintWriter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.List;
 
 public class MapExport {
     private static RegionLoader regionLoader;
@@ -51,7 +55,10 @@ public class MapExport {
             xteaKeyManager.loadKeys(fin);
         }
 
-        MapImageDumper dumper = new MapImageDumper(store, xteaKeyManager);
+        regionLoader = new RegionLoader(store, xteaKeyManager);
+        regionLoader.loadRegions();
+
+        MapImageDumper dumper = new MapImageDumper(store, regionLoader);
         dumper.setRenderIcons(false);
         dumper.setLowMemory(false);
         dumper.setRenderLabels(false);
@@ -77,44 +84,14 @@ public class MapExport {
         out.write(json);
         out.close();
 
-        // Dump Jagex mapID data
-        Index index = store.getIndex(IndexType.WORLDMAP);
-        Archive archive = index.getArchive(1);
-        Storage storage = store.getStorage();
-        byte[] archiveData = storage.loadArchive(archive);
-        ArchiveFiles files = archive.getFiles(archiveData);
-
-        WorldMapCompositeLoader loader = new WorldMapCompositeLoader();
-        for (FSFile file : files.getFiles()) {
-            WorldMapCompositeDefinition wmd = loader.load(file.getContents());
-            int mapid = file.getFileId();
-
-            List<MapSquareDefinition> mapSquareDefinitions = new ArrayList<>(wmd.getMapSquareDefinitions());
-            List<ZoneDefinition> zoneDefinitions = new ArrayList<>(wmd.getZoneDefinitions());
-
-            String squareDefsDir = String.format("./out/mapgen/versions/%s/worldMapCompositeDefinitions/squares", version);
-            String msFilename = String.format("mapSquareDefinitions_%s.json", mapid);
-            outputfile = fileWithDirectoryAssurance(squareDefsDir, msFilename);
-            out = new PrintWriter(outputfile);
-            json = gson.toJson(mapSquareDefinitions);
-            out.write(json);
-            out.close();
-
-            String zoneDefsDir = String.format("./out/mapgen/versions/%s/worldMapCompositeDefinitions/zones", version);
-            String zFilename = String.format("zoneDefinitions_%s.json", mapid);
-            outputfile = fileWithDirectoryAssurance(zoneDefsDir, zFilename);
-            out = new PrintWriter(outputfile);
-            json = gson.toJson(zoneDefinitions);
-            out.write(json);
-            out.close();
-        }
-//        filename = "worldMapDefinitions.json";
-//        outputfile = fileWithDirectoryAssurance(dirname, filename);
-//        out = new PrintWriter(outputfile);
-//        List<WorldMapDefinition> wmds = getWorldMapDefinitions(store);
-//        json = gson.toJson(wmds);
-//        out.write(json);
-//        out.close();
+        // Generate the world map definitions
+        filename = "wikiWorldMapDefinitions.json";
+        outputfile = fileWithDirectoryAssurance(dirname, filename);
+        out = new PrintWriter(outputfile);
+        List<WikiWorldMapDefinition> wwmds = getWikiWorldMapDefinitions(store);
+        json = gson.toJson(wwmds);
+        out.write(json);
+        out.close();
 
         // Output the highest and lowest X and Y values drawn on the plane for coordinate transforms
         regionLoader.calculateBounds();
@@ -122,6 +99,13 @@ public class MapExport {
         filename = "coordinateData.json";
         outputfile = fileWithDirectoryAssurance(dirname, filename);
         out = new PrintWriter(outputfile);
+        Map<String, Integer> coords = createCoordDataJSON();
+        json = gson.toJson(coords);
+        out.write(json);
+        out.close();
+    }
+
+    private static Map<String, Integer> createCoordDataJSON() {
         Map<String, Integer> coords = new HashMap<>();
         coords.put("minTileX", regionLoader.getLowestX().getBaseX());
         coords.put("minSquareX", regionLoader.getLowestX().getRegionX());
@@ -137,47 +121,43 @@ public class MapExport {
         coords.put("squareZoneLength", 8);
         coords.put("zonePixelLength", 32);
         coords.put("zoneTileLength", 8);
-        json = gson.toJson(coords);
-        out.write(json);
-        out.close();
+        return coords;
     }
 
-    private static File fileWithDirectoryAssurance(String directory, String filename) {
-        File dir = new File(directory);
-        if (!dir.exists()) dir.mkdirs();
-        return new File(directory + "/" + filename);
-    }
-
-    private static List<WorldMapDefinition> getWorldMapDefinitions(Store store) throws Exception {
+    private static List<WikiWorldMapDefinition> getWikiWorldMapDefinitions(Store store) throws Exception {
         Index index = store.getIndex(IndexType.WORLDMAP);
-        Archive archive = index.getArchive(1);
         Storage storage = store.getStorage();
-        byte[] archiveData = storage.loadArchive(archive);
-        ArchiveFiles files = archive.getFiles(archiveData);
 
-        WorldMapCompositeLoader loader = new WorldMapCompositeLoader();
+        Archive archiveDetails = index.findArchiveByName("details");
+        Archive archiveCompMap = index.findArchiveByName("compositemap");
 
-        for (FSFile file : files.getFiles()) {
-            WorldMapCompositeDefinition wmd = loader.load(file.getContents());
-            int mapid = file.getFileId();
+        byte[] archiveDataDetails = storage.loadArchive(archiveDetails);
+        byte[] archiveDataCompMap = storage.loadArchive(archiveCompMap);
 
-            List<MapSquareDefinition> mapSquareDefinitions = new ArrayList<>(wmd.getMapSquareDefinitions());
-            List<ZoneDefinition> zoneDefinitions = new ArrayList<>(wmd.getZoneDefinitions());
+        ArchiveFiles filesDetails = archiveDetails.getFiles(archiveDataDetails);
+        ArchiveFiles filesCompMap = archiveCompMap.getFiles(archiveDataCompMap);
 
-            String msFilename = String.format("mapSquareDefinitions_%s.json", mapid);
-            outputfile = fileWithDirectoryAssurance(dirname, msFilename);
-            out = new PrintWriter(outputfile);
-            json = gson.toJson(mapSquareDefinitions);
-            out.write(json);
-            out.close();
+        WorldMapLoader worldMapLoader =  new WorldMapLoader();
+        WorldMapCompositeLoader worldMapCompositeLoader = new WorldMapCompositeLoader();
 
-            String zFilename = String.format("zoneDefinitions_%s.json", mapid);
-            outputfile = fileWithDirectoryAssurance(dirname, zFilename);
-            out = new PrintWriter(outputfile);
-            json = gson.toJson(zoneDefinitions);
-            out.write(json);
-            out.close();
+        List<WikiWorldMapDefinition> definitions = new ArrayList<>();
+        for (FSFile file : filesDetails.getFiles()) {
+            int fileId = file.getFileId();
+            WorldMapDefinition wmd = worldMapLoader.load(file.getContents(), fileId);
+            WorldMapCompositeDefinition wmcd = worldMapCompositeLoader.load(
+                    filesCompMap.findFile(fileId).getContents()
+            );
+
+            WikiWorldMapDefinition wwmd = new WikiWorldMapDefinition(
+                    wmd.getFileId(),
+                    wmd.getName(),
+                    wmd.getPosition(),
+                    wmcd.getMapSquareDefinitions(),
+                    wmcd.getZoneDefinitions()
+            );
+            definitions.add(wwmd);
         }
+        return definitions;
     }
 
     private static File fileWithDirectoryAssurance(String directory, String filename) {
