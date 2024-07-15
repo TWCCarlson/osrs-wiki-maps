@@ -11,7 +11,7 @@ def loadMapDefinitions(mapID, mapDefs, basePath):
 	# for the supplied mapID, returning the list of definition objects
 	mapIDDefs = mapDefs[mapID]
 	squareDefsJSON = mapIDDefs.get("mapSquareDefinitions")
-	zoneDefsJSON = mapIDDefs.get("zoneDefintions")
+	zoneDefsJSON = mapIDDefs.get("zoneDefinitions")
 	squareDefs = SquareDefinition.squareDefsFromJSON(squareDefsJSON, basePath)
 	zoneDefs = ZoneDefinition.zoneDefsFromJSON(zoneDefsJSON, basePath)
 	return squareDefs, zoneDefs
