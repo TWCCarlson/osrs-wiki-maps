@@ -6,12 +6,12 @@ from dataclasses import dataclass, field
 import json
 
 
-def loadMapDefinitions(mapID, mapDefs, basePath):
+def loadMapDefinitions(mapID, mapDefs: dict, basePath):
 	# Reads the map definitions and extracts the square and zone definitions
 	# for the supplied mapID, returning the list of definition objects
-	mapIDDefs = mapDefs[mapID]
-	squareDefsJSON = mapIDDefs.get("mapSquareDefinitions")
-	zoneDefsJSON = mapIDDefs.get("zoneDefinitions")
+	# Load baseline definitions
+	squareDefsJSON = mapDefs.get("mapSquareDefinitions")
+	zoneDefsJSON = mapDefs.get("zoneDefinitions")
 	squareDefs = SquareDefinition.squareDefsFromJSON(squareDefsJSON, basePath)
 	zoneDefs = ZoneDefinition.zoneDefsFromJSON(zoneDefsJSON, basePath)
 	return squareDefs, zoneDefs
