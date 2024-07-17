@@ -148,7 +148,6 @@ class MapBuilder():
 			# assembly of plane 0). It is better to use a single pipeline to 
 			# generate the base images, followed by new pipelines which start
 			# from this point.
-			# Restart the pipeline from this point to save time
 
 			# There is no need to composte the lowest plane
 			if planeNum == self.lowerPlane:
@@ -505,6 +504,7 @@ def buildMapID(mapID, basePath, mapDefs, iconManager: MapIconManager,
 	print(f"\tInserting Icons took {time.time()-iconTime:.2f}")
 
 	print(f"GENERATING {mapID} TOOK {time.time()-mapIDtime:.2f}")
+	return mapID
 
 
 def actionRoutine(basePath):
@@ -522,13 +522,24 @@ def actionRoutine(basePath):
 	# Data paths
 	mapDefsPath = CONFIG.mapid.mapDefsPath
 	mapDefsPath = os.path.join(basePath, mapDefsPath)
+	userMapDefsPath = CONFIG.mapid.userMapDefsPath
+	userMapDefsPath = os.path.join(basePath, userMapDefsPath)
 	iconDefsPath = CONFIG.icon.iconDefs
 	iconDefsPath = os.path.join(basePath, iconDefsPath)
 
-	# Count determines how many mapIDs are generated
+	# Load all defs to render
+	mapDefsToRender = dict()
 	with open(mapDefsPath) as mapDefsFile:
 		mapDefsJSON = json.load(mapDefsFile)
-		defsCount = len(mapDefsJSON)
+		for mapDef in mapDefsJSON:
+			mapID = mapDef["fileId"]
+			mapDefsToRender[mapID] = mapDef
+	with open(userMapDefsPath) as userMapDefsFile:
+		userMapDefsJSON = json.load(userMapDefsFile)
+		for umapDef in userMapDefsJSON:
+			# User map defs take priority (override) cache defs
+			mapID = umapDef["fileId"]
+			mapDefsToRender[mapID] = umapDef
 
 	# The icon manager should only be created once, as icons are reused in IDs
 	# Load icon definitions
@@ -542,9 +553,9 @@ def actionRoutine(basePath):
 	debugZoneDefs = list() # There are no zone definitions for this
 	buildMapID(-1, basePath, None, iconManager, debugSquareDefs, debugZoneDefs)
 
-	# Build the mapID
-	for mapID in range(defsCount):
-		buildMapID(mapID, basePath, mapDefsJSON, iconManager)
+	# Build the mapIDs
+	for mapID, mapDef in mapDefsToRender.items():
+		buildMapID(mapID, basePath, mapDef, iconManager)
 
 	# mapID = 4
 	# buildMapID(mapID, basePath, mapDefsJSON, iconManager)

@@ -332,13 +332,17 @@ def WorldMapDef_to_CompositeMapDef(filePath):
     }
 
     defnList = list()
-    for mapID, mapDefs in enumerate(defs, 0):
-        defnList.append(dict())
-        defnList[mapID]["fileId"] = mapID
-        defnList[mapID]["name"] = ID_NAME_CENTER_MAP[str(mapID)][0]
-        defnList[mapID]["position"] = mapDefs["position"]
-        defnList[mapID]["mapSquareDefinitions"] = list()
-        defnList[mapID]["zoneDefinitions"] = list()
+    for mapDefs in defs:
+        mapID = mapDefs["fileId"]
+        newDef = dict()
+        newDef["fileId"] = mapID
+        try:
+            newDef["name"] = mapDefs["name"]
+            # newDef["name"] = ID_NAME_CENTER_MAP[str(mapID)][0]
+        except KeyError:
+            newDef["name"] = f"Unknown - {mapID}"
+        newDef["mapSquareDefinitions"] = list()
+        newDef["zoneDefinitions"] = list()
         for i, defn in enumerate(mapDefs.get("regionList"), 0):
             # Unload (and correct) the data while determining type
             data, wmd_type = unpackWorldMapDef(defn)
@@ -355,12 +359,14 @@ def WorldMapDef_to_CompositeMapDef(filePath):
             defn["wmd_type"] = int(wmd_type)
             sqDefs, znDefs = createCompositeDefs_FromWorldMapDef(data, wmd_type, 
                                                                  i)
-            defnList[mapID]["mapSquareDefinitions"].extend(sqDefs)
-            defnList[mapID]["zoneDefinitions"].extend(znDefs)
-            
-    with open(f"osrs-wiki-maps/out/mapgen/versions/2024-05-29_a/worldMapDefinitions-typed.json", 'w') as f:
-        json.dump(defs, f)
-    with open(f"osrs-wiki-maps/out/mapgen/versions/2024-05-29_a/wikiWorldMapDefinitions-fromOld.json", 'w') as f:
+            newDef["mapSquareDefinitions"].extend(sqDefs)
+            newDef["zoneDefinitions"].extend(znDefs)
+        defnList.append(newDef)
+    
+    # Write the resulting defs to disk
+    # with open(f"scripts/user_world_defs-conv.json", 'w') as f:
+    #     json.dump(defnList, f)
+    with open(filePath, 'w') as f:
         json.dump(defnList, f)
 
 
