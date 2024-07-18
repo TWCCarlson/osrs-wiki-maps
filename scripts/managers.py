@@ -115,6 +115,24 @@ class MapDefsManager():
 			"upperPlane": self.upperPlane
 		}
 		return out
+	
+	def getBounds(self):
+		lowerLeftBound = [
+			(self.lowerSquareX - 1) * GCS.squareTileLength,
+			(self.lowerSquareZ - 1) * GCS.squareTileLength
+		]
+		upperRightBound = [
+			(self.upperSquareX + 2) * GCS.squareTileLength,
+			(self.upperSquareZ + 2) * GCS.squareTileLength
+		]
+		return [lowerLeftBound, upperRightBound]
+	
+	def getCenter(self):
+		center = [
+			(self.lowerSquareX + self.upperSquareX + 1) * 32,
+			(self.lowerSquareZ + self.upperSquareZ + 1) * 32
+		]
+		return center
 
 
 class MapIconManager:
