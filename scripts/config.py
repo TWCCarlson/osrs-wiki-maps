@@ -84,6 +84,7 @@ class MapBuilderConfig(metaclass=Singleton):
 		zoneDefsPath: str
 		mapDefsPath: str
 		userMapDefsPath: str
+		basemapsPath: str
 
 	def __init__(self, composite: CompositeConfig, zoom: ZoomConfig, 
 				 tiler: TilerConfig, dir: DirConfig, 

@@ -70,6 +70,7 @@
         "squareDefsPath": "worldMapCompositeDefinitions/squares",
         "zoneDefsPath": "worldMapCompositeDefinitions/zones",
         "mapDefsPath": "wikiWorldMapDefinitions.json",
-        "userMapDefsPath": "user_world_defs.json"
+        "userMapDefsPath": "user_world_defs.json",
+        "basemapsPath": "basemaps.json"
     }
 }

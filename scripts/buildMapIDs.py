@@ -503,8 +503,29 @@ def buildMapID(mapID, basePath, mapDefs, iconManager: MapIconManager,
 	mapBuilder.renderIcons(mapIDPath, iconList)
 	print(f"\tInserting Icons took {time.time()-iconTime:.2f}")
 
+	# Extract data for basemaps generation
+	name = mapDefs.get("name")
+	name = name.split(" (")[0] # Remove parenthetical overwrites
+	bounds = mapBuilder.defsStore.getBounds()
+	# View center may be provided or need calculating
+	try:
+		center = mapDefs["position"]
+	except KeyError:
+		center = mapBuilder.defsStore.getCenter()
+	basemapsEntry = createBaseMapsEntry(mapID, name, bounds, center)
+
 	print(f"GENERATING {mapID} TOOK {time.time()-mapIDtime:.2f}")
-	return mapID
+	return basemapsEntry
+
+
+def createBaseMapsEntry(mapID, name, bounds, center):
+	entry = {
+		"mapId": mapID,
+		"name": name,
+		"bounds": bounds,
+		"center": center
+	}
+	return entry
 
 
 def actionRoutine(basePath):
@@ -526,6 +547,8 @@ def actionRoutine(basePath):
 	userMapDefsPath = os.path.join(basePath, userMapDefsPath)
 	iconDefsPath = CONFIG.icon.iconDefs
 	iconDefsPath = os.path.join(basePath, iconDefsPath)
+	basemapsPath = CONFIG.mapid.basemapsPath
+	basemapsPath = os.path.join(basePath, basemapsPath)
 
 	# Load all defs to render
 	mapDefsToRender = dict()
@@ -541,6 +564,9 @@ def actionRoutine(basePath):
 			mapID = umapDef["fileId"]
 			mapDefsToRender[mapID] = umapDef
 
+	# Create leaflet display data file per ID created
+	basemapsList = list()
+
 	# The icon manager should only be created once, as icons are reused in IDs
 	# Load icon definitions
 	iconDefs = IconDefinition.iconDefsFromJSON(iconDefsPath)
@@ -551,11 +577,17 @@ def actionRoutine(basePath):
 	# Therefore each spoof definition is made by iterating the square ranges
 	debugSquareDefs = SquareDefinition.spoofAllSquareDefs(basePath)
 	debugZoneDefs = list() # There are no zone definitions for this
-	buildMapID(-1, basePath, None, iconManager, debugSquareDefs, debugZoneDefs)
+	baseMapEntry = buildMapID(-1, basePath, None, iconManager, 
+						   	  debugSquareDefs, debugZoneDefs)
+	basemapsList.append(baseMapEntry)
 
 	# Build the mapIDs
 	for mapID, mapDef in mapDefsToRender.items():
-		buildMapID(mapID, basePath, mapDef, iconManager)
+		baseMapEntry = buildMapID(mapID, basePath, mapDef, iconManager)
+		basemapsList.append(baseMapEntry)
+
+	with open(basemapsPath, 'w') as f:
+		json.dump(basemapsList, f)
 
 	# mapID = 4
 	# buildMapID(mapID, basePath, mapDefsJSON, iconManager)
