@@ -1,0 +1,73 @@
+{
+    "COMPOSITE_OPTS": {
+        "transparencyColor": 0,
+        "transparencyTolerance": 0,
+        "brightnessFraction": 1.0,
+        "contrastFraction": 1.0,
+        "grayscaleFraction": 0.2,
+        "blurRadius": 1,
+        "sourcePath": "fullplanes/base",
+        "outPath": "fullplanes/composites"
+    },
+    "ZOOM_OPTS": {
+        "zoomLevels": {
+            "min": -3,
+            "max": 3
+        },
+        "baselineZoomLevel": 2,
+        "kernels": {
+            "-3": "linear",
+            "-2": "linear",
+            "-1": "linear",
+            "0": "linear",
+            "1": "linear",
+            "2": "nearest",
+            "3": "nearest"
+        },
+        "sourcePath": "fullplanes/composites",
+        "outPath": "fullplanes/scaled"
+    },
+    "ICON_OPTS": {
+        "planePath": "fullplanes/scaled",
+        "mapIDDirectory": "tiles/rendered",
+        "iconPath": "icons",
+        "iconDefs": "minimapIcons.json",
+        "zoomLevelHasIcons": {
+            "-3": false,
+            "-2": false,
+            "-1": false,
+            "0": true,
+            "1": true,
+            "2": true,
+            "3": true
+        },
+        "outPath": "fullplanes/icons",
+        "planeHasIconsFromPlanes": {
+            "0": [0, 1, 2, 3],
+            "1": [1],
+            "2": [2],
+            "3": [3]
+        },
+        "iconSize": 15
+    },
+    "TILER_OPTS": {
+        "layerPath": "fullplanes/icons",
+        "outPath": "dzsave",
+        "baselineZoomLevel": 2,
+        "backgroundColor": [0, 0, 0],
+        "backgroundThreshold": 0,
+        "imagePath": "fullplanes/scaled"
+    },
+    "DIR_OPTS": {
+        "multiprocessingEnabled": true,
+        "dzPath": "dzsave",
+        "outPath": "tiles/rendered",
+        "baselineZoomLevel": 2
+    },
+    "MAPID_OPTS": {
+        "baseTilePath": "tiles/base/2",
+        "mapIDoutPath": "tiles/rendered",
+        "squareDefsPath": "worldMapCompositeDefinitions/squares",
+        "zoneDefsPath": "worldMapCompositeDefinitions/zones"
+    }
+}
