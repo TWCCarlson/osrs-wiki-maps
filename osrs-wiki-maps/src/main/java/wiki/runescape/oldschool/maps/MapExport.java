@@ -16,14 +16,14 @@ import net.runelite.cache.util.XteaKeyManager;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.*;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.PrintWriter;
+import java.util.*;
 
 public class MapExport {
     private static RegionLoader regionLoader;
-    private static String version = "2024-05-15_c";
+    private static String version = "2024-05-29_a";
     public static void main(String[] args) throws Exception {
         version = args.length > 0 ? args[0] : version;
         Gson gson = new Gson();
@@ -43,15 +43,17 @@ public class MapExport {
         dumper.setRenderLabels(false);
         dumper.load();
 
-        for (int plane = 0; plane < 4; plane++) {
-            BufferedImage image = dumper.drawMap(plane);
-            String dirname = String.format("./out/mapgen/versions/%s/tiles/base", version);
-            String filename = String.format("plane_%s.png", plane);
-            File outputfile = fileWithDirectoryAssurance(dirname, filename);
-            System.out.println(outputfile);
-            ImageIO.write(image, "png", outputfile);
-        }
+        // Draw the planes
+//        for (int plane = 0; plane < 4; plane++) {
+//            BufferedImage image = dumper.drawMap(plane);
+//            String dirname = String.format("./out/mapgen/versions/%s/fullplanes/base", version);
+//            String filename = String.format("plane_%s.png", plane);
+//            File outputfile = fileWithDirectoryAssurance(dirname, filename);
+//            System.out.println(outputfile);
+//            ImageIO.write(image, "png", outputfile);
+//        }
 
+        // Dump icon data and images
         String dirname = String.format("./out/mapgen/versions/%s", version);
         String filename = "minimapIcons.json";
         File outputfile = fileWithDirectoryAssurance(dirname, filename);
@@ -61,6 +63,48 @@ public class MapExport {
         out.write(json);
         out.close();
 
+        // Dump Jagex mapID data
+        filename = "worldMapDefinitions.json";
+        outputfile = fileWithDirectoryAssurance(dirname, filename);
+        out = new PrintWriter(outputfile);
+        List<WorldMapDefinition> wmds = getWorldMapDefinitions(store);
+        json = gson.toJson(wmds);
+        out.write(json);
+        out.close();
+
+        // Output the highest and lowest X and Y values drawn on the plane for coordinate transforms
+        regionLoader.calculateBounds();
+        dirname = String.format("./", version);
+        filename = "coordinateData.json";
+        outputfile = fileWithDirectoryAssurance(dirname, filename);
+        out = new PrintWriter(outputfile);
+        Map<String, Integer> coords = new HashMap<>();
+        coords.put("minTileX", regionLoader.getLowestX().getBaseX());
+        coords.put("minSquareX", regionLoader.getLowestX().getRegionX());
+        coords.put("minTileY", regionLoader.getLowestY().getBaseY());
+        coords.put("minSquareY", regionLoader.getLowestY().getRegionY());
+        coords.put("maxTileX", regionLoader.getHighestX().getBaseX());
+        coords.put("maxSquareX", regionLoader.getHighestX().getRegionX());
+        coords.put("maxTileY", regionLoader.getHighestY().getBaseY());
+        coords.put("maxSquareY", regionLoader.getHighestY().getRegionY());
+        coords.put("tilePixelLength", 4);
+        coords.put("squareTileLength", 64);
+        coords.put("squarePixelLength", 256);
+        coords.put("squareZoneLength", 8);
+        coords.put("zonePixelLength", 32);
+        coords.put("zoneTileLength", 8);
+        json = gson.toJson(coords);
+        out.write(json);
+        out.close();
+    }
+
+    private static File fileWithDirectoryAssurance(String directory, String filename) {
+        File dir = new File(directory);
+        if (!dir.exists()) dir.mkdirs();
+        return new File(directory + "/" + filename);
+    }
+
+    private static List<WorldMapDefinition> getWorldMapDefinitions(Store store) throws Exception {
         Index index = store.getIndex(IndexType.WORLDMAP);
         Archive archive = index.getArchive(1);
         Storage storage = store.getStorage();
