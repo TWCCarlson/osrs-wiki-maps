@@ -1,33 +1,26 @@
 import os.path
-import cache
-import restructureDirectory
-import buildMapIDs
 import sys
 import json
 import glob
 
-from config import GlobalCoordinateDefinition, MapBuilderConfig
-args = sys.argv
-VERSION = args[2]
-WORKING_DIR = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}"
-GlobalCoordinateDefinition.fromJSON(f"{WORKING_DIR}/coordinateData.json")
-MapBuilderConfig.fromJSON("./scripts/mapBuilderConfig.json")
-# Pyvips import is OS-dependent, use dispatcher file
-from pyvips_import import pyvips as pv
-
 BASE_DIRECTORY = "osrs-wiki-maps/out/mapgen/versions"
 
 def getCache(version=None):
+	import cache
 	# Fetch the latest, or the version supplied as an argument, game cache
 	cache.download(f"./osrs-wiki-maps/out/mapgen/versions", version)
 
 def createBaseTiles(version):
+	# Pyvips import is OS-dependent, use dispatcher file
+	from pyvips_import import pyvips as pv
+	import restructureDirectory
+
 	# Slice the cache dump result to produce the base tiles for game maps
 	with open("./scripts/mapBuilderConfig.json") as configFile:
 		configData = json.load(configFile)
 		backgroundColor = configData["TILER_OPTS"]["backgroundColor"]
 		backgroundThreshold = configData["TILER_OPTS"]["backgroundThreshold"]
-	with open("./osrs-wiki-maps/coordinateData.json") as coordFile:
+	with open(os.path.join(BASE_DIRECTORY, version, "coordinateData.json")) as coordFile:
 		coordData = json.load(coordFile)
 
 	# Find the base plane images
@@ -69,9 +62,14 @@ def createBaseTiles(version):
 	os.rmdir(dzSaveOutPath)
 
 def buildAllMapIDs(version):
+	from config import GlobalCoordinateDefinition, MapBuilderConfig
+	WORKING_DIR = f"./osrs-wiki-maps/out/mapgen/versions/{version}"
+	GlobalCoordinateDefinition.fromJSON(f"{WORKING_DIR}/coordinateData.json")
+	MapBuilderConfig.fromJSON("./scripts/mapBuilderConfig.json")
+	import buildMapIDs
+
 	baseDirectory = os.path.join(BASE_DIRECTORY, version)
 	buildMapIDs.actionRoutine(baseDirectory)
-	pass
 
 if __name__ == "__main__":
 	"""
