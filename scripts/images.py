@@ -5,15 +5,8 @@ GCS = GlobalCoordinateDefinition()
 import os
 import math
 
-### Pyvips import
-# Windows binaries are required: 
-# https://pypi.org/project/pyvips/
-# https://www.libvips.org/install.html
-LIBVIPS_VERSION = "8.15"
-vipsbin = os.path.join(os.getcwd(), f"vipsbin/vips-dev-{LIBVIPS_VERSION}/bin")
-os.environ['PATH'] = os.pathsep.join((vipsbin, os.environ['PATH']))
-# os.environ['VIPS_PROFILE'] = "1"
-import pyvips as pv
+# Pyvips import is OS-dependent, use dispatcher file
+from pyvips_import import pyvips as pv
 
 
 class MapImage():
