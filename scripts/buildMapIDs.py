@@ -546,8 +546,6 @@ def actionRoutine(basePath):
 		buildMapID(mapID, basePath, mapDefsJSON, iconManager)
 
 	# mapID = 4
-	# squareDefsPath = os.path.join(squareDefsPath, f"mapSquareDefinitions_{mapID}.json")
-	# zoneDefsPath = os.path.join(zoneDefsPath, f"zoneDefinitions_{mapID}.json")
 	# buildMapID(mapID, basePath, mapDefsJSON, iconManager)
 
 if __name__ == "__main__":
