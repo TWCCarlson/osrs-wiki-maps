@@ -1,1 +1,1 @@
-{"maxSquareX":66,"minSquareY":19,"minSquareX":16,"tilePixelLength":4,"squarePixelLength":256,"minTileX":1024,"minTileY":1216,"squareZoneLength":8,"maxSquareY":196,"maxTileY":12544,"zonePixelLength":32,"maxTileX":4224,"squareTileLength":64}
+{"maxSquareX":66,"zoneTileLength":8,"minSquareY":19,"minSquareX":16,"tilePixelLength":4,"squarePixelLength":256,"minTileX":1024,"minTileY":1216,"squareZoneLength":8,"maxSquareY":196,"maxTileY":12544,"zonePixelLength":32,"maxTileX":4224,"squareTileLength":64}
