@@ -6,16 +6,10 @@ import sys
 import json
 import glob
 
-BASE_DIRECTORY = "osrs-wiki-maps/out/mapgen/versions"
+# Pyvips import is OS-dependent, use dispatcher file
+from pyvips_import import pyvips as pv
 
-# runnerOS = system()
-# if runnerOS == "Windows":
-# Pyvips on windows is finnicky
-# Windows binaries are required: https://pypi.org/project/pyvips/, https://www.libvips.org/install.html
-LIBVIPS_VERSION = "8.15"
-vipsbin = os.path.join(os.getcwd(), f"vipsbin/vips-dev-{LIBVIPS_VERSION}/bin")
-os.environ['PATH'] = os.pathsep.join((vipsbin, os.environ['PATH']))
-import pyvips as pv
+BASE_DIRECTORY = "osrs-wiki-maps/out/mapgen/versions"
 
 def getCache(version=None):
 	# Fetch the latest, or the version supplied as an argument, game cache

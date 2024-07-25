@@ -1,3 +1,4 @@
+# Custom class imports
 from config import MapBuilderConfig, GlobalCoordinateDefinition
 # These are ignored when the singleton is created by buildWikiMaps.py
 global VERSION, WORKING_DIR, GCS, CONFIG
@@ -11,26 +12,19 @@ from mapelements import (MapPlane, MapSquare, MapZone, MapIcon, MapMosaic,
 						 MapSquareOfZones)
 from managers import MapDefsManager, MapIconManager
 
+# Utility imports
 from collections import defaultdict
 import math
-import pprint
 import os
 import time
-import json
 import glob
+
+# Debug imports
+import pprint
 import logging
 
-### Pyvips import
-# Windows binaries are required: 
-# https://pypi.org/project/pyvips/
-# https://www.libvips.org/install.html
-LIBVIPS_VERSION = "8.15"
-vipsbin = os.path.join(os.getcwd(), f"vipsbin/vips-dev-{LIBVIPS_VERSION}/bin")
-os.environ['PATH'] = os.pathsep.join((vipsbin, os.environ['PATH']))
-# os.environ['VIPS_PROFILE'] = "1"
-# os.environ["VIPS_CONCURRENCY"] = "1"
-# logging.basicConfig(level = logging.DEBUG)
-import pyvips as pv
+# Pyvips import is OS-dependent, use dispatcher file
+from pyvips_import import pyvips as pv
 
 
 class MapBuilder():
