@@ -6,6 +6,12 @@ import sys
 import json
 import glob
 
+from config import GlobalCoordinateDefinition, MapBuilderConfig
+args = sys.argv
+VERSION = args[2]
+WORKING_DIR = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}"
+GlobalCoordinateDefinition.fromJSON(f"{WORKING_DIR}/coordinateData.json")
+MapBuilderConfig.fromJSON("./scripts/mapBuilderConfig.json")
 # Pyvips import is OS-dependent, use dispatcher file
 from pyvips_import import pyvips as pv
 

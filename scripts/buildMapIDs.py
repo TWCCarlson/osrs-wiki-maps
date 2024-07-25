@@ -1,7 +1,11 @@
 # Custom class imports
 from config import MapBuilderConfig, GlobalCoordinateDefinition
-GCS = GlobalCoordinateDefinition.fromJSON("./osrs-wiki-maps/coordinateData.json")
+# These are ignored when the singleton is created by buildWikiMaps.py
+VERSION = "2024-07-10_0_a"
+WORKING_DIR = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}"
+GCS = GlobalCoordinateDefinition.fromJSON(F"{WORKING_DIR}/coordinateData.json")
 CONFIG = MapBuilderConfig.fromJSON("./scripts/mapBuilderConfig.json")
+
 from definitions import (SquareDefinition, ZoneDefinition, IconDefinition,
 						 loadMapDefinitions)
 from images import MapImage, PlaneImage, SquareImage, ZoneImage, IconImage
@@ -543,11 +547,9 @@ def actionRoutine(basePath):
 		buildMapID(mapID, basePath, mapDefsJSON, iconManager)
 
 	# mapID = 4
-	# squareDefsPath = os.path.join(squareDefsPath, f"mapSquareDefinitions_{mapID}.json")
-	# zoneDefsPath = os.path.join(zoneDefsPath, f"zoneDefinitions_{mapID}.json")
 	# buildMapID(mapID, basePath, mapDefsJSON, iconManager)
 
 if __name__ == "__main__":
 	startTime = time.time()
-	actionRoutine("osrs-wiki-maps/out/mapgen/versions/2024-07-10_0_a")
+	actionRoutine(f"osrs-wiki-maps/out/mapgen/versions/{VERSION}")
 	print(f"MapID generation took {time.time()-startTime:.2f}s")
