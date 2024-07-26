@@ -41,16 +41,17 @@ import java.util.List;
 
 public class MapExport {
     private static RegionLoader regionLoader;
-    private static String version = "2024-05-29_0_a";
+    private static String version = "2024-07-24_0_a";
     public static void main(String[] args) throws Exception {
         version = args.length > 0 ? args[0] : version;
         Gson gson = new Gson();
-        String cache = "./data/cache";
+        String cache = String.format("./out/mapgen/versions/%s/cache", version);
+        String xteas = String.format("./out/mapgen/versions/%s/xteas.json", version);
         Store store = new Store(new File(cache));
         store.load();
 
         XteaKeyManager xteaKeyManager = new XteaKeyManager();
-        try (FileInputStream fin = new FileInputStream("./data/xteas.json"))
+        try (FileInputStream fin = new FileInputStream(xteas))
         {
             xteaKeyManager.loadKeys(fin);
         }

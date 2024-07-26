@@ -1,10 +1,9 @@
 # Custom class imports
 from config import MapBuilderConfig, GlobalCoordinateDefinition
 # These are ignored when the singleton is created by buildWikiMaps.py
-VERSION = "2024-07-10_0_a"
-WORKING_DIR = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}"
-GCS = GlobalCoordinateDefinition.fromJSON(F"{WORKING_DIR}/coordinateData.json")
-CONFIG = MapBuilderConfig.fromJSON("./scripts/mapBuilderConfig.json")
+global VERSION, WORKING_DIR, GCS, CONFIG
+GCS = GlobalCoordinateDefinition()
+CONFIG = MapBuilderConfig()
 
 from definitions import (SquareDefinition, ZoneDefinition, IconDefinition,
 						 loadMapDefinitions)
@@ -241,6 +240,8 @@ class MapBuilder():
 		outPath = os.path.join(dzPath, f"plane_{planeNum}/{zoomLevel}")
 		backgroundColor = CONFIG.composite.transparencyColor
 		backgroundTolerance = CONFIG.composite.transparencyTolerance
+		if not os.path.exists(outPath):
+			os.makedirs(outPath)
 		image.dzsave(outPath,
 					 tile_size = GCS.squarePixelLength,
 					 suffix='.png[Q=100]',
@@ -504,15 +505,20 @@ def buildMapID(mapID, basePath, mapDefs, iconManager: MapIconManager,
 	print(f"\tInserting Icons took {time.time()-iconTime:.2f}")
 
 	# Extract data for basemaps generation
-	name = mapDefs.get("name")
-	name = name.split(" (")[0] # Remove parenthetical overwrites
 	bounds = mapBuilder.defsStore.getBounds()
-	# View center may be provided or need calculating
-	try:
-		center = mapDefs["position"]
-	except KeyError:
+	if mapID == -1:
+		name = "Debug"
 		center = mapBuilder.defsStore.getCenter()
-	basemapsEntry = createBaseMapsEntry(mapID, name, bounds, center)
+		basemapsEntry = createBaseMapsEntry(mapID, name, bounds, center)
+	else:
+		name = mapDefs.get("name")
+		name = name.split(" (")[0] # Remove parenthetical overwrites
+		# View center may be provided or need calculating
+		try:
+			center = mapDefs["position"]
+		except KeyError:
+			center = mapBuilder.defsStore.getCenter()
+		basemapsEntry = createBaseMapsEntry(mapID, name, bounds, center)
 
 	print(f"GENERATING {mapID} TOOK {time.time()-mapIDtime:.2f}")
 	return basemapsEntry
@@ -544,7 +550,7 @@ def actionRoutine(basePath):
 	mapDefsPath = CONFIG.mapid.mapDefsPath
 	mapDefsPath = os.path.join(basePath, mapDefsPath)
 	userMapDefsPath = CONFIG.mapid.userMapDefsPath
-	userMapDefsPath = os.path.join(basePath, userMapDefsPath)
+	# userMapDefsPath = os.path.join(basePath, userMapDefsPath)
 	iconDefsPath = CONFIG.icon.iconDefs
 	iconDefsPath = os.path.join(basePath, iconDefsPath)
 	basemapsPath = CONFIG.mapid.basemapsPath
@@ -594,5 +600,9 @@ def actionRoutine(basePath):
 
 if __name__ == "__main__":
 	startTime = time.time()
+	VERSION = "2024-07-24_0_a"
+	WORKING_DIR = f"./osrs-wiki-maps/out/mapgen/versions/{VERSION}"
+	GCS = GlobalCoordinateDefinition.fromJSON(F"{WORKING_DIR}/coordinateData.json")
+	CONFIG = MapBuilderConfig.fromJSON("./scripts/mapBuilderConfig.json")
 	actionRoutine(f"osrs-wiki-maps/out/mapgen/versions/{VERSION}")
 	print(f"MapID generation took {time.time()-startTime:.2f}s")

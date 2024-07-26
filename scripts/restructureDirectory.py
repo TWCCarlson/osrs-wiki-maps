@@ -10,8 +10,10 @@ import shutil
 
 def removeSubdirectories(topLevelDir):
 	# Use DFS to find tree leaves and remove them
-	dirsToRemove = [os.path.normpath(path) for path in glob.glob(os.path.join(topLevelDir, "**/"))]
-	filesToRemove = [os.path.normpath(path) for path in glob.glob(os.path.join(topLevelDir, "*.*"))]
+	dirsToRemove = [os.path.normpath(path) for path 
+				 	in glob.iglob(os.path.join(topLevelDir, "**/"))]
+	filesToRemove = [os.path.normpath(path) for path
+				  	 in glob.iglob(os.path.join(topLevelDir, "*.*"))]
 	# Traverse deeper into the tree
 	for dir in dirsToRemove:
 		# Empty subdirs and delete
