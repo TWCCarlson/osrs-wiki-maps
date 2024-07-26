@@ -27,37 +27,37 @@ jobs:
             CACHE_VER=$(cat lastVersion.txt)
             echo "CACHE_VER=$CACHE_VER" >> $GITHUB_ENV
 
-        # - name: 5. Checkout RuneLite
-        #   run: |
-        #     git clone https://github.com/runelite/runelite.git RuneLite
+        - name: 5. Checkout RuneLite
+          run: |
+            git clone https://github.com/runelite/runelite.git RuneLite
 
-        # - name: 6. Set up JDK 11
-        #   uses: actions/setup-java@v4
-        #   with:
-        #     distribution: temurin
-        #     java-version: 11
+        - name: 6. Set up JDK 11
+          uses: actions/setup-java@v4
+          with:
+            distribution: temurin
+            java-version: 11
 
-        # - name: 7. Build RuneLite
-        #   run: |
-        #     cd RuneLite
-        #     mvn install -q -f pom.xml -DskipTests
+        - name: 7. Build RuneLite
+          run: |
+            cd RuneLite
+            mvn install -q -f pom.xml -DskipTests
 
-        # - name: 8. Build MapExport
-        #   run: |
-        #     mvn -q clean package
+        - name: 8. Build MapExport
+          run: |
+            mvn -q clean package
     
-        # - name: 9. Run MapExport
-        #   working-directory: ./osrs-wiki-maps
-        #   run: |
-        #     java -jar target/osrs-wiki-maps-1.10.26-shaded.jar $CACHE_VER
+        - name: 9. Run MapExport
+          working-directory: ./osrs-wiki-maps
+          run: |
+            java -jar target/osrs-wiki-maps-1.10.26-shaded.jar $CACHE_VER
         
-        # - name: 10. Generate Base Tiles
-        #   run: |
-        #     python scripts/buidWikiMaps.py createBaseTiles $CACHE_VER
+        - name: 10. Generate Base Tiles
+          run: |
+            python scripts/buidWikiMaps.py createBaseTiles $CACHE_VER
 
-        # - name: 11. Build All MapID Tiles
-        #   run: |
-        #     python scripts/buildWikiMaps.py buildAllMapIDs $CACHE_VER
+        - name: 11. Build All MapID Tiles
+          run: |
+            python scripts/buildWikiMaps.py buildAllMapIDs $CACHE_VER
 
         - name: 12. Timestamp Release
           id: tag
@@ -65,20 +65,14 @@ jobs:
             echo "::set-output name=release_tag::WikiMapGen_$(date +"%Y.%m.%d_%H-%M")"
             echo "::set-output name=release_count::${{github.run_number}}"
 
-        - name: check
-          run: |
-            echo "${{secrets.GITHUB_TOKEN}}"
-
         - name: 13. Package and Release
           uses: softprops/action-gh-release@v2
           with:
             name: ${{env.CACHE_VER}}
             tag_name: ${{steps.tag.outputs.release_tag}}
-            body: Release No. ${{steps.tag.outputs.release_count}}
+            body: |
+              Release No. ${{steps.tag.outputs.release_count}}
+              Using openRS2 Cache $CACHE_VER
             token: ${{secrets.GITHUB_TOKEN}}
             files: osrs-wiki-maps/out/mapgen/versions/${{env.CACHE_VER}}/tiles/rendered
             make_latest: true
-
-        # - name: check
-        #   run: |
-        #     echo "osrs-wiki-maps/out/mapgen/versions/${{env.CACHE_VER}}"
