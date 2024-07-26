@@ -1,6 +1,6 @@
 name: Build All MapIDs
 
-on: [workflow_dispatch]
+on: [workflow_dispatch, push]
 
 jobs:
     first_job:
