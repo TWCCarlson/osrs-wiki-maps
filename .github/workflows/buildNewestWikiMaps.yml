@@ -53,7 +53,7 @@ jobs:
         
         - name: 10. Generate Base Tiles
           run: |
-            python scripts/buidWikiMaps.py createBaseTiles $CACHE_VER
+            python scripts/buildWikiMaps.py createBaseTiles $CACHE_VER
 
         - name: 11. Build All MapID Tiles
           run: |
