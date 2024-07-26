@@ -43,3 +43,4 @@ vips-profile.txt
 # cache files
 __pycache__
 .coverage
+.actrc

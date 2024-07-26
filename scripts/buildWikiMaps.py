@@ -3,17 +3,19 @@ import sys
 import json
 import glob
 
-# Pyvips import is OS-dependent, use dispatcher file
-from pyvips_import import pyvips as pv
-
 BASE_DIRECTORY = "osrs-wiki-maps/out/mapgen/versions"
 
-def getCache(version=None):
+def getCache(reqVersion=None):
 	import cache
 	# Fetch the latest, or the version supplied as an argument, game cache
-	cache.download(f"./osrs-wiki-maps/out/mapgen/versions", version)
+	foundVersion = cache.download(f"./osrs-wiki-maps/out/mapgen/versions", 
+							 	  reqVersion)
+	with open("lastVersion.txt", 'w') as out:
+		out.write(foundVersion)
 
 def createBaseTiles(version):
+	# Pyvips import is OS-dependent, use dispatcher file
+	from pyvips_import import pyvips as pv
 	import restructureDirectory
 
 	# Slice the cache dump result to produce the base tiles for game maps
@@ -21,7 +23,7 @@ def createBaseTiles(version):
 		configData = json.load(configFile)
 		backgroundColor = configData["TILER_OPTS"]["backgroundColor"]
 		backgroundThreshold = configData["TILER_OPTS"]["backgroundThreshold"]
-	with open("./osrs-wiki-maps/coordinateData.json") as coordFile:
+	with open(os.path.join(BASE_DIRECTORY, version)) as coordFile:
 		coordData = json.load(coordFile)
 
 	# Find the base plane images
