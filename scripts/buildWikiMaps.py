@@ -44,7 +44,10 @@ def createBaseTiles(version):
 
 		# Load the image and slice
 		planeImage = pv.Image.new_from_file(planeImagePath)
-		planeImage.dzsave(os.path.join(dzSaveOutPath, f"plane_{planeNum}/2"),
+		resultDir = os.path.join(dzSaveOutPath, f"plane_{planeNum}/2")
+		if not os.path.exists(resultDir):
+			os.makedirs(resultDir)
+		planeImage.dzsave(resultDir,
 						  tile_size= 256,
 						  suffix= '.png[Q=100]',
 						  depth= 'one',

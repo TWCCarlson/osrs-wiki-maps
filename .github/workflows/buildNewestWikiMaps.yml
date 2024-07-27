@@ -18,7 +18,11 @@ jobs:
         - name: 2. Checkout
           uses: actions/checkout@v4
           
-        
+        - name: 10. Install vips
+          run: |
+            echo "?????????"
+            sudo apt-get -y update
+            sudo apt-get -y install libvips-dev --no-install-recommends
 
         - name: 3. Install Requirements
           run: |
@@ -26,12 +30,6 @@ jobs:
             pip install -r requirements.txt
             pip show pyvips
 
-        - name: 10. Install vips
-          run: |
-            echo "?????????"
-            sudo apt-get -y update
-            sudo apt-get -y install libvips-dev --no-install-recommends
-        
         # - name: 4. Download Latest Cache
         #   run: |
         #     python scripts/buildWikiMaps.py getCache
