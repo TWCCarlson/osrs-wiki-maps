@@ -240,6 +240,8 @@ class MapBuilder():
 		outPath = os.path.join(dzPath, f"plane_{planeNum}/{zoomLevel}")
 		backgroundColor = CONFIG.composite.transparencyColor
 		backgroundTolerance = CONFIG.composite.transparencyTolerance
+		if not os.path.exists(outPath):
+			os.makedirs(outPath)
 		image.dzsave(outPath,
 					 tile_size = GCS.squarePixelLength,
 					 suffix='.png[Q=100]',
@@ -543,7 +545,7 @@ def actionRoutine(basePath):
 	mapDefsPath = CONFIG.mapid.mapDefsPath
 	mapDefsPath = os.path.join(basePath, mapDefsPath)
 	userMapDefsPath = CONFIG.mapid.userMapDefsPath
-	userMapDefsPath = os.path.join(basePath, userMapDefsPath)
+	# userMapDefsPath = os.path.join(basePath, userMapDefsPath)
 	iconDefsPath = CONFIG.icon.iconDefs
 	iconDefsPath = os.path.join(basePath, iconDefsPath)
 	basemapsPath = CONFIG.mapid.basemapsPath

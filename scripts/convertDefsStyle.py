@@ -366,7 +366,7 @@ def WorldMapDef_to_CompositeMapDef(filePath):
     # Write the resulting defs to disk
     # with open(f"scripts/user_world_defs-conv.json", 'w') as f:
     #     json.dump(defnList, f)
-    with open(filePath, 'w') as f:
+    with open("user_world_defs.json", 'w') as f:
         json.dump(defnList, f)
 
 
@@ -621,5 +621,6 @@ if __name__ == "__main__":
     # args[0] = current file
 	# args[1] = function name
 	# args[2] = file to translate
-    globals()[args[1]](args[2])
+    # globals()[args[1]](args[2])
     # WorldMapDef_to_CompositeMapDef(f"osrs-wiki-maps/out/mapgen/versions/2024-05-29_a/worldMapDefinitions.json")
+    WorldMapDef_to_CompositeMapDef(f"extra_defs.json")
