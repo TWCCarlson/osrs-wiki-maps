@@ -14,9 +14,17 @@ UTC = dt.timezone.utc
 
 
 def make_output_folder(date_str: str, sub_ver: int, working_dir: str) -> str:
+    # Determine the name of the output folder
     version_count = 0
     letter = "a"
     out_folder = os.path.join(working_dir, f"{date_str}_{sub_ver}_{letter}")
+    
+    # In a fresh install the out paths may not exist
+    out_dir = os.path.dirname(out_folder)
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
+    # If the output folder already exists, increment the letter version
     while os.path.exists(out_folder):
         version_count += 1
         letter = ascii_lowercase[version_count]
@@ -159,7 +167,7 @@ def download(working_dir, version=None):
     download_xteas(cache_id, out_folder)
     download_cache(cache_id, out_folder)
 
-    return out_folder
+    return os.path.basename(out_folder)
 
 if __name__ == "__main__":
     download("osrs-wiki-maps/out/mapgen/versions", "2024-05-29_0")
