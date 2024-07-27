@@ -41,7 +41,7 @@ import java.util.List;
 
 public class MapExport {
     private static RegionLoader regionLoader;
-    private static String version = "2024-05-29_0_a";
+    private static String version = "2024-07-24_0_a";
     public static void main(String[] args) throws Exception {
         version = args.length > 0 ? args[0] : version;
         Gson gson = new Gson();
