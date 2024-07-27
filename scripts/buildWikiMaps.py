@@ -5,10 +5,13 @@ import glob
 
 BASE_DIRECTORY = "osrs-wiki-maps/out/mapgen/versions"
 
-def getCache(version=None):
+def getCache(reqVersion=None):
 	import cache
 	# Fetch the latest, or the version supplied as an argument, game cache
-	cache.download(f"./osrs-wiki-maps/out/mapgen/versions", version)
+	foundVersion = cache.download(f"./osrs-wiki-maps/out/mapgen/versions", 
+							 	  reqVersion)
+	with open("lastVersion.txt", 'w') as out:
+		out.write(foundVersion)
 
 def createBaseTiles(version):
 	# Pyvips import is OS-dependent, use dispatcher file
@@ -40,7 +43,10 @@ def createBaseTiles(version):
 
 		# Load the image and slice
 		planeImage = pv.Image.new_from_file(planeImagePath)
-		planeImage.dzsave(os.path.join(dzSaveOutPath, f"plane_{planeNum}/2"),
+		resultDir = os.path.join(dzSaveOutPath, f"plane_{planeNum}/2")
+		if not os.path.exists(resultDir):
+			os.makedirs(resultDir)
+		planeImage.dzsave(resultDir,
 						  tile_size= 256,
 						  suffix= '.png[Q=100]',
 						  depth= 'one',
