@@ -28,6 +28,7 @@ jobs:
           run: |
             python --version
             pip install -r requirements.txt
+            pip show pyvips
 
         - name: 4. Download Latest Cache
           run: |
