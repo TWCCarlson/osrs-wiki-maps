@@ -30,6 +30,7 @@ def createBaseTiles(version):
 	baseDirectory = os.path.join(BASE_DIRECTORY, version)
 	imageBasePath = os.path.join(baseDirectory, "fullplanes/base")
 	imageFilePaths = glob.glob(os.path.join(imageBasePath, "**.*png"))
+	imageFilePaths = glob.glob("**.png")
 	dzSaveOutPath = os.path.join(baseDirectory, "tiles/dzSave")
 
 	# Identify the bottom left coordinates
