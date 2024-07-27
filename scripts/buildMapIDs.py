@@ -505,15 +505,20 @@ def buildMapID(mapID, basePath, mapDefs, iconManager: MapIconManager,
 	print(f"\tInserting Icons took {time.time()-iconTime:.2f}")
 
 	# Extract data for basemaps generation
-	name = mapDefs.get("name")
-	name = name.split(" (")[0] # Remove parenthetical overwrites
 	bounds = mapBuilder.defsStore.getBounds()
-	# View center may be provided or need calculating
-	try:
-		center = mapDefs["position"]
-	except KeyError:
+	if mapID == -1:
+		name = "Debug"
 		center = mapBuilder.defsStore.getCenter()
-	basemapsEntry = createBaseMapsEntry(mapID, name, bounds, center)
+		basemapsEntry = createBaseMapsEntry(mapID, name, bounds, center)
+	else:
+		name = mapDefs.get("name")
+		name = name.split(" (")[0] # Remove parenthetical overwrites
+		# View center may be provided or need calculating
+		try:
+			center = mapDefs["position"]
+		except KeyError:
+			center = mapBuilder.defsStore.getCenter()
+		basemapsEntry = createBaseMapsEntry(mapID, name, bounds, center)
 
 	print(f"GENERATING {mapID} TOOK {time.time()-mapIDtime:.2f}")
 	return basemapsEntry
