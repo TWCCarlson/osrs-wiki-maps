@@ -55,15 +55,15 @@ def createBaseTiles(version):
 						  skip_blanks=backgroundThreshold)
 		
 	# Restructure the output of the slicer to comport with Jagex coordinates
-	targetDirectory = os.path.join(baseDirectory, "tiles/base")
-	planeTileDirectories = glob.glob(os.path.join(dzSaveOutPath, "*/"))
-	for directory in planeTileDirectories:
-		restructureDirectory.restructureDirectory(directory, 
-												  targetDirectory,
-											  	  coordData, 2, 
-												  xOffset=LOWER_SQUARE_X)
-	restructureDirectory.removeSubdirectories(dzSaveOutPath)
-	os.rmdir(dzSaveOutPath)
+	# targetDirectory = os.path.join(baseDirectory, "tiles/base")
+	# planeTileDirectories = glob.glob(os.path.join(dzSaveOutPath, "*/"))
+	# for directory in planeTileDirectories:
+	# 	restructureDirectory.restructureDirectory(directory, 
+	# 											  targetDirectory,
+	# 										  	  coordData, 2, 
+	# 											  xOffset=LOWER_SQUARE_X)
+	# restructureDirectory.removeSubdirectories(dzSaveOutPath)
+	# os.rmdir(dzSaveOutPath)
 
 def buildAllMapIDs(version):
 	from config import GlobalCoordinateDefinition, MapBuilderConfig

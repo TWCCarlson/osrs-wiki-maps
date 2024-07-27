@@ -36,6 +36,11 @@ jobs:
         #     CACHE_VER=$(cat lastVersion.txt)
         #     echo "CACHE_VER=$CACHE_VER" >> $GITHUB_ENV
 
+        - name: L
+          run: |
+            CACHE_VER=2024-07-24-0_a
+            echo "CACHE_VER=$CACHE_VER" >> $GITHUB_ENV
+
         # - name: 5. Checkout RuneLite
         #   run: |
         #     git clone https://github.com/runelite/runelite.git RuneLite
