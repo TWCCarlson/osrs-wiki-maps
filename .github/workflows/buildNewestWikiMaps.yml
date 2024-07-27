@@ -5,16 +5,22 @@ on: [workflow_dispatch, push]
 jobs:
     fetch-cache:
       name: Build Latest Wiki Maps
-      runs-on: ubuntu-latest
+      runs-on: ubuntu-22.04
 
       steps:
         - name: 1. Install Python
           uses: actions/setup-python@v5
           with: 
             python-version: '3.12'
+        - name: check
+          run: python --version
 
         - name: 2. Checkout
           uses: actions/checkout@v4
+          
+        - name: 10. Install vips
+          run: |
+            sudo apt-get install libvips-dev --no-install-recommends
 
         - name: 3. Install Requirements
           run: |
@@ -51,6 +57,8 @@ jobs:
           run: |
             java -jar target/osrs-wiki-maps-1.10.26-shaded.jar $CACHE_VER
         
+
+
         - name: 10. Generate Base Tiles
           run: |
             python scripts/buildWikiMaps.py createBaseTiles $CACHE_VER
