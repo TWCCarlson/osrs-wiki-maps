@@ -23,8 +23,8 @@ def createBaseTiles(version):
 		configData = json.load(configFile)
 		backgroundColor = configData["TILER_OPTS"]["backgroundColor"]
 		backgroundThreshold = configData["TILER_OPTS"]["backgroundThreshold"]
-	# with open(os.path.join(BASE_DIRECTORY, version, "coordinateData.json")) as coordFile:
-	# 	coordData = json.load(coordFile)
+	with open(os.path.join(BASE_DIRECTORY, version, "coordinateData.json")) as coordFile:
+		coordData = json.load(coordFile)
 
 	# Find the base plane images
 	baseDirectory = os.path.join(BASE_DIRECTORY, version)
@@ -34,7 +34,7 @@ def createBaseTiles(version):
 	dzSaveOutPath = os.path.join(baseDirectory, "tiles/dzSave")
 
 	# Identify the bottom left coordinates
-	# LOWER_SQUARE_X = coordData["minSquareX"]
+	LOWER_SQUARE_X = coordData["minSquareX"]
 
 	# Slice each image
 	for planeImagePath in imageFilePaths:
@@ -58,15 +58,15 @@ def createBaseTiles(version):
 						  skip_blanks=backgroundThreshold)
 		
 	# Restructure the output of the slicer to comport with Jagex coordinates
-	# targetDirectory = os.path.join(baseDirectory, "tiles/base")
-	# planeTileDirectories = glob.glob(os.path.join(dzSaveOutPath, "*/"))
-	# for directory in planeTileDirectories:
-	# 	restructureDirectory.restructureDirectory(directory, 
-	# 											  targetDirectory,
-	# 										  	  coordData, 2, 
-	# 											  xOffset=LOWER_SQUARE_X)
-	# restructureDirectory.removeSubdirectories(dzSaveOutPath)
-	# os.rmdir(dzSaveOutPath)
+	targetDirectory = os.path.join(baseDirectory, "tiles/base")
+	planeTileDirectories = glob.glob(os.path.join(dzSaveOutPath, "*/"))
+	for directory in planeTileDirectories:
+		restructureDirectory.restructureDirectory(directory, 
+												  targetDirectory,
+											  	  coordData, 2, 
+												  xOffset=LOWER_SQUARE_X)
+	restructureDirectory.removeSubdirectories(dzSaveOutPath)
+	os.rmdir(dzSaveOutPath)
 
 def buildAllMapIDs(version):
 	from config import GlobalCoordinateDefinition, MapBuilderConfig
