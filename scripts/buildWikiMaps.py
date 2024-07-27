@@ -23,8 +23,8 @@ def createBaseTiles(version):
 		configData = json.load(configFile)
 		backgroundColor = configData["TILER_OPTS"]["backgroundColor"]
 		backgroundThreshold = configData["TILER_OPTS"]["backgroundThreshold"]
-	with open(os.path.join(BASE_DIRECTORY, version, "coordinateData.json")) as coordFile:
-		coordData = json.load(coordFile)
+	# with open(os.path.join(BASE_DIRECTORY, version, "coordinateData.json")) as coordFile:
+	# 	coordData = json.load(coordFile)
 
 	# Find the base plane images
 	baseDirectory = os.path.join(BASE_DIRECTORY, version)
