@@ -1,6 +1,6 @@
 name: Build Latest MapIDs
 
-on: [workflow_dispatch, push]
+on: [workflow_dispatch]
 
 jobs:
     fetch-cache:
@@ -72,7 +72,7 @@ jobs:
 
         - name: 14. Package
           run: |
-            zip -r rendered.zip osrs-wiki-maps/out/mapgen/versions/${{env.CACHE_VER}}/tiles/rendered
+            zip -r -q rendered.zip osrs-wiki-maps/out/mapgen/versions/${{env.CACHE_VER}}/tiles/rendered
         
         - name: 15. Package and Release
           uses: softprops/action-gh-release@v2
