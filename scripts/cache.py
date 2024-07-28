@@ -167,6 +167,8 @@ def download(working_dir, version=None):
     download_xteas(cache_id, out_folder)
     download_cache(cache_id, out_folder)
 
+    print(f"Cache and xteas saved to {out_folder}")
+
     return os.path.basename(out_folder)
 
 if __name__ == "__main__":
