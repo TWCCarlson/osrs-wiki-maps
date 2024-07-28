@@ -194,7 +194,6 @@ class MapBuilder():
 		# The lowest plane is the base image for stacking operations
 		# For planes above 0, the finalized plane image will be a composite
 		# Create the stacked underlay by masking the top level and pasting
-		# mask = targetPlane.imageContainer.getMask()
 		color = CONFIG.composite.transparencyColor
 		tolerance = CONFIG.composite.transparencyTolerance
 		mask = (abs(image - color) > tolerance).bandor()
