@@ -18,6 +18,7 @@ import math
 import os
 import time
 import glob
+import json
 
 # Debug imports
 import pprint
@@ -476,17 +477,17 @@ class MapBuilder():
 		return iconLayer
 		
 
-def buildMapID(mapID, basePath, squareDefsPath, zoneDefsPath,
-			   iconManager: MapIconManager):
+def buildMapID(mapID, basePath, mapDefs, iconManager: MapIconManager,
+			   squareDefs=None, zoneDefs=None):
 	print(f"BUILDING {mapID}")
 	mapIDtime = time.time()
 	# Load definitions that create the mapID
 	if mapID == -1:
-		squareDefs = squareDefsPath
-		zoneDefs = zoneDefsPath
+		# For mapID -1 the input will be spoofed squares that are already made
+		pass
 	else:
-		squareDefs = SquareDefinition.squareDefsFromJSON(squareDefsPath, basePath)
-		zoneDefs = ZoneDefinition.zoneDefsFromJSON(zoneDefsPath, basePath)
+		squareDefs, zoneDefs = loadMapDefinitions(mapID, mapDefs, basePath)
+		
 	defsManager = MapDefsManager(squareDefs, zoneDefs)
 
 	# Build the mapID
@@ -518,17 +519,15 @@ def actionRoutine(basePath):
 	the correct image files.
 	"""
 	# Data paths
-	squareDefsPath = CONFIG.mapid.squareDefsPath
-	squareDefsPath = os.path.join(basePath, squareDefsPath)
-	zoneDefsPath = CONFIG.mapid.zoneDefsPath
-	zoneDefsPath = os.path.join(basePath, zoneDefsPath)
+	mapDefsPath = CONFIG.mapid.mapDefsPath
+	mapDefsPath = os.path.join(basePath, mapDefsPath)
 	iconDefsPath = CONFIG.icon.iconDefs
 	iconDefsPath = os.path.join(basePath, iconDefsPath)
 
 	# Count determines how many mapIDs are generated
-	squareDefsCount = len(os.listdir(squareDefsPath))
-	zoneDefsCount = len(os.listdir(zoneDefsPath))
-	defsCount = min(squareDefsCount, zoneDefsCount)
+	with open(mapDefsPath) as mapDefsFile:
+		mapDefsJSON = json.load(mapDefsFile)
+		defsCount = len(mapDefsJSON)
 
 	# The icon manager should only be created once, as icons are reused in IDs
 	# Load icon definitions
@@ -540,18 +539,16 @@ def actionRoutine(basePath):
 	# Therefore each spoof definition is made by iterating the square ranges
 	debugSquareDefs = SquareDefinition.spoofAllSquareDefs(basePath)
 	debugZoneDefs = list() # There are no zone definitions for this
-	buildMapID(-1, basePath, debugSquareDefs, debugZoneDefs, iconManager)
+	buildMapID(-1, basePath, None, iconManager, debugSquareDefs, debugZoneDefs)
 
 	# Build the mapID
 	for mapID in range(defsCount):
-		squareDefPath = os.path.join(squareDefsPath, f"mapSquareDefinitions_{mapID}.json")
-		zoneDefPath = os.path.join(zoneDefsPath, f"zoneDefinitions_{mapID}.json")
-		buildMapID(mapID, basePath, squareDefPath, zoneDefPath, iconManager)
+		buildMapID(mapID, basePath, mapDefsJSON, iconManager)
 
 	# mapID = 4
 	# squareDefsPath = os.path.join(squareDefsPath, f"mapSquareDefinitions_{mapID}.json")
 	# zoneDefsPath = os.path.join(zoneDefsPath, f"zoneDefinitions_{mapID}.json")
-	# buildMapID(mapID, basePath, squareDefsPath, zoneDefsPath, iconManager)
+	# buildMapID(mapID, basePath, mapDefsJSON, iconManager)
 
 if __name__ == "__main__":
 	startTime = time.time()

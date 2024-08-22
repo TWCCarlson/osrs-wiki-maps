@@ -85,6 +85,7 @@ class MapBuilderConfig(metaclass=Singleton):
 		mapIDoutPath: str
 		squareDefsPath: str
 		zoneDefsPath: str
+		mapDefsPath: str
 
 	def __init__(self, composite: CompositeConfig, zoom: ZoomConfig, 
 				 tiler: TilerConfig, dir: DirConfig, 
@@ -197,4 +198,4 @@ class GlobalCoordinateDefinition(metaclass=Singleton):
 					 squareZoneLength, squareTileLength, squarePixelLength,
 					 zoneTileLength, zonePixelLength,
 					 tilePixelLength)
-		return newGCS
+		return newGCS	
