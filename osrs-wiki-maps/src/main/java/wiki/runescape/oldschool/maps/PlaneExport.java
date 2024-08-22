@@ -37,7 +37,7 @@ import java.util.*;
 
 public class PlaneExport {
     private static RegionLoader regionLoader;
-    private static String version = "2024-05-29_a";
+    private static String version = "2024-05-29_0_a";
     public static void main(String[] args) throws Exception {
         version = args.length > 0 ? args[0] : version;
         Gson gson = new Gson();
@@ -58,14 +58,14 @@ public class PlaneExport {
         dumper.load();
 
         // Draw the planes
-//        for (int plane = 0; plane < 4; plane++) {
-//            BufferedImage image = dumper.drawMap(plane);
-//            String dirname = String.format("./out/mapgen/versions/%s/fullplanes/base", version);
-//            String filename = String.format("plane_%s.png", plane);
-//            File outputfile = fileWithDirectoryAssurance(dirname, filename);
-//            System.out.println(outputfile);
-//            ImageIO.write(image, "png", outputfile);
-//        }
+        for (int plane = 0; plane < 4; plane++) {
+            BufferedImage image = dumper.drawMap(plane);
+            String dirname = String.format("./out/mapgen/versions/%s/fullplanes/base", version);
+            String filename = String.format("plane_%s.png", plane);
+            File outputfile = fileWithDirectoryAssurance(dirname, filename);
+            System.out.println(outputfile);
+            ImageIO.write(image, "png", outputfile);
+        }
 
         // Dump icon data and images
         String dirname = String.format("./out/mapgen/versions/%s", version);

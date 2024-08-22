@@ -798,12 +798,8 @@ def actionRoutine(basePath):
 	squareDefsPath = os.path.join(basePath, squareDefsPath)
 	zoneDefsPath = CONFIG.mapid.zoneDefsPath
 	zoneDefsPath = os.path.join(basePath, zoneDefsPath)
-
 	iconDefsPath = CONFIG.icon.iconDefs
 	iconDefsPath = os.path.join(basePath, iconDefsPath)
-	# baseTilePath = os.path.join(basePath, "tiles/rendered/-1/2")
-	# coordDataPath = os.path.join(basePath, "coordinateData.json")
-	# configDataPath = os.path.join(basePath, "./scripts/mapBuilderConfig.json")
 
 	# Count determines how many mapIDs are generated
 	squareDefsCount = len(os.listdir(squareDefsPath))
@@ -815,7 +811,7 @@ def actionRoutine(basePath):
 	iconDefs = IconDefinition.iconDefsFromJSON(iconDefsPath)
 	iconManager = MapIconManager(iconDefs, basePath)
 
-	# Building the debug (-1) mapID (this has all tiles)
+	# Building the debug (-1) mapID (contains all tiles, with icons)
 	# This is created using spoofed definitions that render in-place
 	# Therefore each spoof definition is made by iterating the square ranges
 	debugSquareDefs = SquareDefinition.spoofAllSquareDefs(basePath)
