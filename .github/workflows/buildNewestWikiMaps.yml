@@ -1,0 +1,89 @@
+name: Build Latest MapIDs
+
+on: [workflow_dispatch]
+
+jobs:
+    fetch-cache:
+      name: Build Latest Wiki Maps
+      runs-on: ubuntu-22.04
+
+      steps:
+        - name: 1. Install Python
+          uses: actions/setup-python@v5
+          with: 
+            python-version: '3.12'
+
+        - name: 2. Checkout
+          uses: actions/checkout@v4
+          
+        - name: 3. Load Vips Binaries
+          run: |
+            sudo apt-get -y update
+            sudo apt-get -y install libvips-dev --no-install-recommends
+
+        - name: 4. Install Requirements
+          run: |
+            pip install -r requirements.txt
+            pip show pyvips
+
+        - name: 5. Download Latest Cache
+          run: |
+            python scripts/buildWikiMaps.py getCache
+            CACHE_VER=$(cat lastVersion.txt)
+            echo "CACHE_VER=$CACHE_VER" >> $GITHUB_ENV
+
+        - name: 6. Checkout RuneLite
+          run: |
+            git clone https://github.com/runelite/runelite.git RuneLite
+
+        - name: 7. Set up JDK 11
+          uses: actions/setup-java@v4
+          with:
+            distribution: temurin
+            java-version: 11
+
+        - name: 8. Build RuneLite
+          run: |
+            cd RuneLite
+            mvn install -q -f pom.xml -DskipTests
+
+        - name: 9. Build PlaneExport
+          run: |
+            mvn -q clean package
+    
+        - name: 10. Run PlaneExport
+          working-directory: ./osrs-wiki-maps
+          run: |
+            java -jar target/osrs-wiki-maps-*-shaded.jar $CACHE_VER
+
+        - name: 11. Generate Base Tiles
+          run: |
+            python scripts/buildWikiMaps.py createBaseTiles $CACHE_VER
+
+        - name: 12. Build All MapID Tiles
+          run: |
+            python scripts/buildWikiMaps.py buildAllMapIDs $CACHE_VER
+
+        - name: 13. Timestamp Release
+          id: tag
+          run: |
+            echo "::set-output name=release_tag::WikiMapGen_$(date +"%Y.%m.%d_%H-%M")"
+            echo "::set-output name=release_count::${{github.run_number}}"
+
+        - name: 14. Package
+          run: |
+            zip -r -q rendered.zip osrs-wiki-maps/out/mapgen/versions/${{env.CACHE_VER}}/tiles/rendered
+        
+        - name: 15. Package and Release
+          uses: softprops/action-gh-release@v2
+          with:
+            name: ${{env.CACHE_VER}}
+            tag_name: ${{steps.tag.outputs.release_tag}}
+            body: |
+              Release No. ${{steps.tag.outputs.release_count}}
+              Using openRS2 Cache ${{env.CACHE_VER}}
+            token: ${{secrets.GITHUB_TOKEN}}
+            files: |
+              rendered.zip
+              osrs-wiki-maps/out/mapgen/versions/${{env.CACHE_VER}}/basemaps.json
+            make_latest: true

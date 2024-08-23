@@ -24,7 +24,7 @@
               <shadedClassifierName>shaded</shadedClassifierName>
               <transformers>
                 <transformer>
-                  <mainClass>wiki.runescape.oldschool.maps.MapExport</mainClass>
+                  <mainClass>wiki.runescape.oldschool.maps.PlaneExport</mainClass>
                 </transformer>
               </transformers>
             </configuration>

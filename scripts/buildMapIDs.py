@@ -240,6 +240,8 @@ class MapBuilder():
 		outPath = os.path.join(dzPath, f"plane_{planeNum}/{zoomLevel}")
 		backgroundColor = CONFIG.composite.transparencyColor
 		backgroundTolerance = CONFIG.composite.transparencyTolerance
+		if not os.path.exists(outPath):
+			os.makedirs(outPath)
 		image.dzsave(outPath,
 					 tile_size = GCS.squarePixelLength,
 					 suffix='.png[Q=100]',
