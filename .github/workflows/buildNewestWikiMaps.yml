@@ -54,7 +54,7 @@ jobs:
         - name: 10. Run MapExport
           working-directory: ./osrs-wiki-maps
           run: |
-            java -jar target/osrs-wiki-maps-1.10.26-shaded.jar $CACHE_VER
+            java -jar target/osrs-wiki-maps-*-shaded.jar $CACHE_VER
 
         - name: 11. Generate Base Tiles
           run: |
