@@ -1,11 +1,7 @@
 package wiki.runescape.oldschool.maps;
 
 
-import net.runelite.cache.AreaManager;
-import net.runelite.cache.IndexType;
-import net.runelite.cache.MapImageDumper;
-import net.runelite.cache.ObjectManager;
-import net.runelite.cache.SpriteManager;
+import net.runelite.cache.*;
 import net.runelite.cache.definitions.AreaDefinition;
 import net.runelite.cache.definitions.ObjectDefinition;
 import net.runelite.cache.definitions.SpriteDefinition;
@@ -13,6 +9,7 @@ import net.runelite.cache.definitions.WorldMapCompositeDefinition;
 import net.runelite.cache.definitions.ZoneDefinition;
 import net.runelite.cache.definitions.MapSquareDefinition;
 import net.runelite.cache.definitions.WorldMapDefinition;
+import net.runelite.cache.definitions.WorldMapElementDefinition;
 import net.runelite.cache.definitions.loaders.WorldMapCompositeLoader;
 import net.runelite.cache.definitions.loaders.WorldMapLoader;
 import net.runelite.cache.fs.Archive;
@@ -41,7 +38,7 @@ import java.util.List;
 
 public class MapExport {
     private static RegionLoader regionLoader;
-    private static String version = "2024-05-29_0_a";
+    private static String version = "2025-03-26_0_a";
     public static void main(String[] args) throws Exception {
         version = args.length > 0 ? args[0] : version;
         Gson gson = new Gson();
@@ -175,6 +172,10 @@ public class MapExport {
         objectManager.load();
         AreaManager areaManager = new AreaManager(store);
         areaManager.load();
+        WorldMapManager worldMapManager = new WorldMapManager(store);
+        worldMapManager.load();
+        List<WorldMapElementDefinition> elements = worldMapManager.getElements();
+
         for (Region region : regionLoader.getRegions()) {
             for (Location location : region.getLocations()) {
                 ObjectDefinition od = objectManager.getObject(location.getId());
@@ -185,6 +186,15 @@ public class MapExport {
                     spriteIds.add(area.spriteId);
                 }
             }
+        }
+
+        for (WorldMapElementDefinition element : elements) {
+            AreaDefinition area = areaManager.getArea(element.getAreaDefinitionId());
+            if (area.spriteId == -1) {  // maybe these are the yellow squares/lines, no sprite?
+                continue;
+            }
+            icons.add(new MinimapIcon(element.getWorldPosition(), area.spriteId));
+            spriteIds.add(area.spriteId);
         }
 
         for (int spriteId : spriteIds) {
