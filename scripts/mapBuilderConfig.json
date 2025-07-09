@@ -42,11 +42,11 @@
             "3": true
         },
         "outPath": "fullplanes/icons",
+        "defsWithIconsFromOtherPlanes" : {
+            "0": {"0": [0,1,2,3], "1": [1], "2": [2], "3": [3]}
+        },
         "planeHasIconsFromPlanes": {
-            "0": [0, 1, 2, 3],
-            "1": [1],
-            "2": [2],
-            "3": [3]
+            "0": [0], "1": [1], "2": [2], "3": [3]
         },
         "iconSize": 15
     },
