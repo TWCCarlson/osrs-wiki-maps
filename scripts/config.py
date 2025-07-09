@@ -53,15 +53,18 @@ class MapBuilderConfig(metaclass=Singleton):
 		zoomLevelHasIcons: dict
 		planePath: str
 		outPath: str
+		defsWithIconsFromOtherPlanes: dict
 		planeHasIconsFromPlanes: dict
 		iconSize: int
 
 		def __post_init__(self):
 			# Adjust str keys to ints for ease of use
 			self.zoomLevelHasIcons = {int(k):v for k,v in 
-									  self.zoomLevelHasIcons.items()}
+				self.zoomLevelHasIcons.items()}
 			self.planeHasIconsFromPlanes = {int(k):v for k,v in
-								   	  		self.planeHasIconsFromPlanes.items()}
+				self.planeHasIconsFromPlanes.items()}
+			self.defsWithIconsFromOtherPlanes = {int(k):v for k,v in
+				self.defsWithIconsFromOtherPlanes.items()}
 
 	@dataclass
 	class TilerConfig(metaclass=Singleton):
@@ -200,4 +203,4 @@ class GlobalCoordinateDefinition(metaclass=Singleton):
 					 squareZoneLength, squareTileLength, squarePixelLength,
 					 zoneTileLength, zonePixelLength,
 					 tilePixelLength)
-		return newGCS	
+		return newGCS

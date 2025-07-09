@@ -187,22 +187,22 @@ class MapIconManager:
 				if isinstance(element, MapSquareOfZones):
 					# Another layer of mosaic needs to be parsed
 					for zone, subelem in element.mosaic.items():
-						newIconList = self.getIconsInCell(plane, subelem)
+						newIconList = self.getIconsInCell(plane, subelem, mapBuilder.mapID)
 						renderedIcons[plane].extend(newIconList)
 				elif isinstance(element, MapSquare):
-					newIconList = self.getIconsInCell(plane, element)
+					newIconList = self.getIconsInCell(plane, element, mapBuilder.mapID)
 					renderedIcons[plane].extend(newIconList)
 		return renderedIcons
 
-	def getIconsInCell(self, plane, cellContent: MapSquare | MapSquareOfZones):
+	def getIconsInCell(self, plane, cellContent: MapSquare | MapSquareOfZones, mapID):
 		# If there is no definition, we do not render anything
 		cellDefinition = cellContent.definition
-		if not cellDefinition:
-			return defaultdict(list)
 		icons = defaultdict(list)
+		if not cellDefinition:
+			return icons
 
 		# Cover the whole plane range, finding all icons from the same region
-		for defPlane in range(0, 3+1):
+		for defPlane in range(0, 4):
 			sourceCoords = cellDefinition.getFullSource()
 			iconsInCell = self.getIconsInDef(defPlane, *sourceCoords)
 			for icon in iconsInCell:
@@ -212,7 +212,11 @@ class MapIconManager:
 		# Only return the list of icons that are rendered in this cell's plane
 		outList = list()
 		for planeNum, iconList in icons.items():
-			if planeNum in CONFIG.icon.planeHasIconsFromPlanes[plane]:
+			# Some mapIDs have overrides
+			mapIDOverride = CONFIG.icon.defsWithIconsFromOtherPlanes
+			if mapID in mapIDOverride.keys() and planeNum in mapIDOverride[mapID]:
+				outList.extend(iconList)
+			elif planeNum in CONFIG.icon.planeHasIconsFromPlanes[plane]:
 				outList.extend(iconList)
 		return outList
 
