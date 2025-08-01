@@ -151,7 +151,13 @@ class MapIconManager:
 		self.processIconList()
 
 	def sortDefinitions(self):
-		self.iconDefs.sort()
+		def iconSortKey(icon: IconDefinition) -> int:
+			# Uses the same RuneLite hash/key to sort icons
+			level = icon.plane
+			x, z = icon.getTileRelativeToOwnerSquare()
+			return level << 28 | x << 14 | z
+
+		self.iconDefs.sort(key=iconSortKey)
 
 	def loadIconImages(self):
 		# Load all the icon images into referenceable memory
