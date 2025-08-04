@@ -202,27 +202,27 @@ def createCompositeDefs_FromWMD0(wmd, id):
 
 
 def createCompositeDefs_FromWMD1(wmd, id):
-    # Selects a set of squares (in a rectangle) to render in place
-    lowerLeftX = wmd["xLowerLeft"]
-    lowerLeftZ = wmd["zLowerLeft"]
-    lowerRightX = wmd["xLowerRight"]
-    lowerRightZ = wmd["zLowerRight"]
-    upperLeftX = wmd["xUpperLeft"]
-    upperLeftZ = wmd["zUpperLeft"]
-    upperRightX = wmd["xUpperRight"]
-    upperRightZ = wmd["zUpperRight"]
+    # Selects a set of squares (in a rectangle), rendering them somewhere
+    sourceMinX = wmd["xLowerLeft"]
+    sourceMinZ = wmd["yLowerLeft"]
+    sourceMaxX = wmd["xLowerRight"]
+    sourceMaxZ = wmd["yUpperLeft"]
+    displayMinX = wmd["xUpperLeft"]
+    displayMinZ = wmd["yLowerRight"]
+    displayMaxX = wmd["xUpperRight"]
+    displayMaxZ = wmd["yUpperRight"]
     minLevel = wmd["plane"]
     levels = wmd["numberOfPlanes"]
     defsList = list()
-    for x in range(lowerLeftX, lowerRightX+1):
-        for z in range(lowerLeftZ, upperLeftZ+1):
+    for x in range(sourceMinX, sourceMaxX+1):
+        for z in range(sourceMinZ, sourceMaxZ+1):
             squareDef = {
                 "minLevel": minLevel,
                 "levels": levels,
                 "sourceSquareX": x,
                 "sourceSquareZ": z,
-                "displaySquareX": x,
-                "displaySquareZ": z,
+                "displaySquareX": x - sourceMinX + displayMinX,
+                "displaySquareZ": z - sourceMinZ + displayMinZ,
                 "groupId": id,
                 "fileId": 0,
                 "WMD_type": 1
